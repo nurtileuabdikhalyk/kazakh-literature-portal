@@ -34,24 +34,24 @@ const products = ref([
 
 </script>
 <template>
-  <div class="flex justify-center">
+  <div class="w-full h-screen pt-20">
     <Carousel
         :value="products"
         :numVisible="1"
         :numScroll="1"
         orientation="horizontal"
         circular
+        :showNavigators="false"
         :autoplayInterval="3000"
         class="w-full mx-auto"
     >
       <template #item="slotProps">
         <Card style="width: 100%; overflow: hidden">
-
           <template #content>
             <div
-                class="relative w-full max-w-3xl mx-auto border-2 border-gray-300 rounded-xl overflow-hidden shadow-md">
+                class="relative w-full max-w-6xl mx-auto border-2 border-gray-300 rounded-xl overflow-hidden shadow-md">
               <img :src="slotProps.data.image"
-                   class="w-full h-[600px] object-cover"
+                   class="w-full !h-[75%] object-cover"
               />
               <!-- Overlay -->
               <div class="absolute inset-0 bg-black/50"></div>
@@ -78,28 +78,6 @@ const products = ref([
             </div>
           </template>
         </Card>
-<!--        <div-->
-<!--            class="relative w-full max-w-3xl mx-auto border-2 border-gray-300 rounded-xl overflow-hidden shadow-md">-->
-<!--          <img :src="slotProps.data.image"-->
-<!--               class="w-full h-[600px] object-cover"-->
-<!--          />-->
-<!--          &lt;!&ndash; Overlay &ndash;&gt;-->
-<!--          <div class="absolute inset-0 bg-black/50"></div>-->
-
-<!--          &lt;!&ndash; Text content &ndash;&gt;-->
-<!--          <div class="absolute bottom-10 left-10 right-10 text-white">-->
-
-<!--            <p class="text-sm opacity-80 mb-2">-->
-<!--              {{ slotProps.data.category }}-->
-<!--            </p>-->
-
-<!--            <h1 class="text-2xl md:text-4xl font-bold leading-tight max-w-3xl">-->
-<!--              {{ slotProps.data.title }}-->
-<!--            </h1>-->
-
-<!--          </div>-->
-
-<!--        </div>-->
       </template>
 
     </Carousel>
