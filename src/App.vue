@@ -5,11 +5,11 @@ import Header from '@/components/Header.vue'
 import Footer from "@/components/Footer.vue";
 </script>
 <template>
-  <Header />
+  <Header v-if="!$route.meta.hideHeader"/>
   <router-view/>
   <DynamicDialog/>
   <Toast/>
   <ScrollTop/>
   <ConfirmDialog/>
-  <Footer/>
+  <Footer v-if="!$route.meta.hideFooter"/>
 </template>

@@ -1,5 +1,7 @@
 
 <script setup lang="ts">
+import { useRouter } from 'vue-router'
+const router = useRouter()
 import { ref, computed } from 'vue'
 import Dialog from 'primevue/dialog'
 
@@ -200,7 +202,10 @@ const totalPages = computed(() => {
 })
 
 // ─── Actions ──────────────────────────────────────────
-function openBook(book) { selectedBook.value = book; dialogVisible.value = true }
+// function openBook(book) { selectedBook.value = book; dialogVisible.value = true }
+function openBook(book) {
+  router.push({ name: 'book-reader', params: { id: book.id } })
+}
 function toggleSave(book) { book.saved = !book.saved }
 </script>
 
