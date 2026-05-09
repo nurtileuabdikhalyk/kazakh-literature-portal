@@ -14,6 +14,12 @@ const routes = [
         import( "@/pages/BookReader.vue"),
     meta: { hideHeader: true, hideFooter: true },
   },
+  {
+    path: '/lessons/:id',
+    name: 'lesson-detail',
+    component: () =>
+        import( "@/pages/LessonDetail.vue"),
+  },
 ]
 
 const router = createRouter({

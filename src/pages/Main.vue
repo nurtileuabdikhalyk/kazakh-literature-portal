@@ -1,13 +1,17 @@
 <script setup lang="ts">
 import MainCarousel from "@/components/MainCarousel.vue";
-import News from "@/components/News.vue";
 import BooksSection from "@/components/BooksSection.vue";
+import LessonsSection from "@/components/LessonsSection.vue";
+import AudiovisualSection from "@/components/AudiovisualSection.vue";
+import InteractiveTasks from "@/components/InteractiveTasks.vue";
 </script>
 
 <template>
   <MainCarousel/>
-  <News/>
-  <BooksSection/>
+  <LessonsSection/>
+  <AudiovisualSection />
+  <InteractiveTasks />
+<!--  <BooksSection/>-->
 </template>
 
 <style scoped>
