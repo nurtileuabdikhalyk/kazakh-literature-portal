@@ -121,7 +121,7 @@ function goToAll() {
         <span class="orn-line"/><span class="orn-diamond">◆</span><span class="orn-line"/>
       </div>
       <h2 class="section-title">
-        <span class="title-kz">Сабақтар</span>
+        <span class="title-kz">Видео cабақтар</span>
       </h2>
       <p class="section-sub">Қазақ әдебиеті бойынша жүйеленген оқу материалдары</p>
     </div>
