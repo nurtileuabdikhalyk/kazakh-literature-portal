@@ -4,6 +4,7 @@ import BooksSection from "@/components/BooksSection.vue";
 import LessonsSection from "@/components/LessonsSection.vue";
 import AudiovisualSection from "@/components/AudiovisualSection.vue";
 import InteractiveTasks from "@/components/InteractiveTasks.vue";
+import CreativeTasks from "@/components/CreativeTasks.vue";
 </script>
 
 <template>
@@ -11,6 +12,7 @@ import InteractiveTasks from "@/components/InteractiveTasks.vue";
   <LessonsSection/>
   <AudiovisualSection />
   <InteractiveTasks />
+  <CreativeTasks />
 <!--  <BooksSection/>-->
 </template>
 

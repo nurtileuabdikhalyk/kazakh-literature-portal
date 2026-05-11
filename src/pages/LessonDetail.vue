@@ -1,1020 +1,683 @@
-<template>
-  <div class="lesson-detail-page">
-
-    <!-- ══ HERO ═════════════════════════════════════════ -->
-    <div class="lesson-hero" :class="lesson.type">
-      <div class="hero-bg">
-        <img :src="lesson.thumb" :alt="lesson.title" class="hero-bg-img" />
-        <div class="hero-bg-overlay" />
-        <div class="hero-pattern" aria-hidden="true" />
-      </div>
-
-      <div class="hero-inner">
-        <!-- Breadcrumb -->
-        <nav class="breadcrumb">
-          <button class="bc-link" @click="$router.back()">
-            <i class="pi pi-home" /> Басты
-          </button>
-          <span class="bc-sep">›</span>
-          <button class="bc-link" @click="$router.push('/lessons')">Сабақтар</button>
-          <span class="bc-sep">›</span>
-          <span class="bc-current">{{ lesson.title }}</span>
-        </nav>
-
-        <div class="hero-content">
-          <div class="hero-left">
-            <!-- Badges -->
-            <div class="hero-badges">
-              <span class="type-badge" :class="lesson.type">
-                <i :class="'pi ' + typeIcon(lesson.type)" />
-                {{ typeLabel(lesson.type) }}
-              </span>
-              <span class="level-badge" :class="lesson.level">{{ levelLabel(lesson.level) }}</span>
-              <span class="topic-badge">{{ topicName(lesson.topic) }}</span>
-            </div>
-
-            <h1 class="hero-title">{{ lesson.title }}</h1>
-            <p class="hero-desc">{{ lesson.description }}</p>
-
-            <div class="hero-meta">
-              <div class="meta-author">
-                <div class="author-avatar">{{ lesson.author[0] }}</div>
-                <div>
-                  <span class="author-label">Оқытушы</span>
-                  <span class="author-name">{{ lesson.author }}</span>
-                </div>
-              </div>
-              <div class="meta-stats">
-                <span class="ms-item"><i class="pi pi-eye" /> {{ lesson.views }}</span>
-                <span class="ms-item"><i class="pi pi-clock" /> {{ lesson.duration }}</span>
-                <span class="ms-item"><i class="pi pi-calendar" /> {{ lesson.date }}</span>
-              </div>
-            </div>
-
-            <!-- Rating -->
-            <div class="hero-rating">
-              <span v-for="i in 5" :key="i" class="star" :class="{ on: i <= Math.round(lesson.rating) }">★</span>
-              <span class="rating-num">{{ lesson.rating }}</span>
-              <span class="rating-cnt">({{ lesson.reviews }} пікір)</span>
-            </div>
-
-            <!-- CTA -->
-            <div class="hero-cta">
-              <button class="cta-primary" @click="startLesson">
-                <i :class="'pi ' + (lesson.type === 'video' ? 'pi-play' : 'pi-book')" />
-                {{ lesson.type === 'video' ? 'Видеоны қарау' : 'Оқуды бастау' }}
-              </button>
-              <button class="cta-ghost" @click="toggleSave">
-                <i :class="saved ? 'pi pi-bookmark-fill' : 'pi pi-bookmark'" />
-                {{ saved ? 'Сақталды' : 'Сақтау' }}
-              </button>
-              <button class="cta-icon" @click="shareLesson" title="Бөлісу">
-                <i class="pi pi-share-alt" />
-              </button>
-            </div>
-          </div>
-
-          <!-- Hero card -->
-          <div class="hero-card">
-            <div class="hc-thumb-wrap">
-              <img :src="lesson.thumb" :alt="lesson.title" class="hc-thumb" />
-              <div class="hc-thumb-overlay" />
-              <button v-if="lesson.type === 'video'" class="hc-play" @click="startLesson">
-                <i class="pi pi-play" />
-              </button>
-              <div v-else class="hc-type-icon">
-                <i :class="'pi ' + typeIcon(lesson.type)" />
-              </div>
-            </div>
-            <div class="hc-info">
-              <div class="hc-row">
-                <i class="pi pi-clock" />
-                <span>{{ lesson.duration }}</span>
-              </div>
-              <div class="hc-row">
-                <i class="pi pi-file" />
-                <span>{{ lesson.materialsCount }} материал</span>
-              </div>
-              <div class="hc-row">
-                <i class="pi pi-users" />
-                <span>{{ lesson.students }} оқушы</span>
-              </div>
-              <div class="hc-row">
-                <i class="pi pi-certificate" />
-                <span>Сертификат берілмейді</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ══ BODY ══════════════════════════════════════════ -->
-    <div class="detail-body">
-      <div class="detail-inner">
-
-        <!-- ── Left: Main content ─────────────────────── -->
-        <main class="detail-main">
-
-          <!-- Progress bar (if started) -->
-          <div v-if="lesson.progress" class="progress-block">
-            <div class="pb-header">
-              <span class="pb-label">Орындалды</span>
-              <span class="pb-pct">{{ lesson.progress }}%</span>
-            </div>
-            <div class="pb-track"><div class="pb-fill" :style="{ width: lesson.progress + '%' }" /></div>
-            <p class="pb-hint">{{ lesson.progress === 100 ? '✓ Сабақ аяқталды' : `${100 - lesson.progress}% қалды` }}</p>
-          </div>
-
-          <!-- Tab nav -->
-          <div class="detail-tabs">
-            <button
-                v-for="tab in detailTabs"
-                :key="tab.key"
-                class="detail-tab"
-                :class="{ active: activeTab === tab.key }"
-                @click="activeTab = tab.key"
-            >
-              <i :class="'pi ' + tab.icon" />
-              {{ tab.label }}
-            </button>
-          </div>
-
-          <!-- ── TAB: Content ───── -->
-          <div v-show="activeTab === 'content'" class="tab-panel">
-
-            <!-- Video player -->
-            <div v-if="lesson.type === 'video'" class="video-player" :class="{ playing }">
-              <img :src="lesson.thumb" :alt="lesson.title" class="vp-poster" />
-              <div class="vp-overlay" :class="{ hidden: playing }" />
-
-              <div class="vp-controls" :class="{ visible: !playing || showControls }">
-                <div class="vp-progress-wrap" @click="seekVideo">
-                  <div class="vp-progress-track">
-                    <div class="vp-progress-fill" :style="{ width: videoProgress + '%' }" />
-                    <div class="vp-progress-thumb" :style="{ left: videoProgress + '%' }" />
-                  </div>
-                  <div class="vp-time-row">
-                    <span>{{ formatTime(videoTime) }}</span>
-                    <span>{{ lesson.duration }}</span>
-                  </div>
-                </div>
-                <div class="vp-btn-row">
-                  <button class="vp-btn" @click="skip(-10)"><i class="pi pi-replay" /><span>10</span></button>
-                  <button class="vp-btn main-btn" @click="togglePlay">
-                    <i :class="playing ? 'pi pi-pause' : 'pi pi-play'" />
-                  </button>
-                  <button class="vp-btn" @click="skip(10)"><i class="pi pi-refresh" /><span>10</span></button>
-                  <div class="vp-spacer" />
-                  <button class="vp-btn" @click="toggleMute">
-                    <i :class="muted ? 'pi pi-volume-off' : 'pi pi-volume-up'" />
-                  </button>
-                  <select v-model="playbackSpeed" class="vp-speed">
-                    <option v-for="s in speeds" :key="s" :value="s">{{ s }}x</option>
-                  </select>
-                  <button class="vp-btn" @click="toggleFullscreen"><i class="pi pi-window-maximize" /></button>
-                </div>
-              </div>
-            </div>
-
-            <!-- PDF viewer -->
-            <div v-else-if="lesson.type === 'pdf'" class="pdf-preview">
-              <div class="pdf-header">
-                <i class="pi pi-file-pdf" />
-                <span>{{ lesson.title }}.pdf</span>
-                <a href="#" class="pdf-dl-btn"><i class="pi pi-download" /> Жүктеу</a>
-              </div>
-              <div class="pdf-pages-demo">
-                <div v-for="p in 3" :key="p" class="pdf-page-demo">
-                  <div class="ppd-header">
-                    <div class="ppd-line w-60" />
-                    <div class="ppd-line w-40" />
-                  </div>
-                  <div class="ppd-body">
-                    <div v-for="l in 8" :key="l" class="ppd-line" :class="'w-' + [90,80,95,70,85,75,90,60][l-1]" />
-                  </div>
-                  <div class="ppd-page-num">{{ p }}</div>
-                </div>
-              </div>
-              <button class="open-pdf-btn" @click="$router.push(`/lessons/${lesson.id}/pdf`)">
-                <i class="pi pi-expand" /> Толық ашу
-              </button>
-            </div>
-
-            <!-- Text lesson -->
-            <div v-else class="text-content">
-              <div v-for="(block, i) in lesson.content" :key="i" class="content-block" :class="block.type">
-                <h2 v-if="block.type === 'heading'" class="cb-heading">{{ block.text }}</h2>
-                <h3 v-else-if="block.type === 'subheading'" class="cb-subheading">{{ block.text }}</h3>
-                <p  v-else-if="block.type === 'paragraph'" class="cb-paragraph">{{ block.text }}</p>
-                <blockquote v-else-if="block.type === 'quote'" class="cb-quote">
-                  <p>{{ block.text }}</p>
-                  <cite v-if="block.cite">— {{ block.cite }}</cite>
-                </blockquote>
-                <div v-else-if="block.type === 'list'" class="cb-list">
-                  <ul>
-                    <li v-for="item in block.items" :key="item">{{ item }}</li>
-                  </ul>
-                </div>
-                <div v-else-if="block.type === 'highlight'" class="cb-highlight">
-                  <i class="pi pi-lightbulb" />
-                  <p>{{ block.text }}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- ── TAB: Materials ─── -->
-          <div v-show="activeTab === 'materials'" class="tab-panel">
-            <div class="materials-list">
-              <div
-                  v-for="mat in lesson.materials"
-                  :key="mat.id"
-                  class="material-item"
-              >
-                <div class="mat-icon" :class="mat.type">
-                  <i :class="'pi ' + matIcon(mat.type)" />
-                </div>
-                <div class="mat-body">
-                  <span class="mat-title">{{ mat.title }}</span>
-                  <span class="mat-meta">{{ mat.size }} · {{ mat.type.toUpperCase() }}</span>
-                </div>
-                <a href="#" class="mat-dl">
-                  <i class="pi pi-download" />
-                </a>
-              </div>
-            </div>
-          </div>
-
-          <!-- ── TAB: Notes ──────── -->
-          <div v-show="activeTab === 'notes'" class="tab-panel">
-            <div class="notes-area">
-              <textarea
-                  v-model="userNotes"
-                  class="notes-textarea"
-                  placeholder="Конспект жазыңыз…"
-                  rows="10"
-              />
-              <div class="notes-footer">
-                <span class="notes-hint">Жазбаларыңыз автоматты сақталады</span>
-                <button class="notes-save" @click="saveNotes">
-                  <i class="pi pi-check" /> Сақтау
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- ── TAB: Comments ───── -->
-          <div v-show="activeTab === 'comments'" class="tab-panel">
-            <div class="comments-list">
-              <div v-for="c in lesson.comments" :key="c.id" class="comment-item">
-                <div class="ci-avatar">{{ c.author[0] }}</div>
-                <div class="ci-body">
-                  <div class="ci-header">
-                    <span class="ci-name">{{ c.author }}</span>
-                    <span class="ci-date">{{ c.date }}</span>
-                  </div>
-                  <div class="ci-stars">
-                    <span v-for="i in 5" :key="i" class="star-sm" :class="{ on: i <= c.rating }">★</span>
-                  </div>
-                  <p class="ci-text">{{ c.text }}</p>
-                </div>
-              </div>
-            </div>
-            <!-- Comment form -->
-            <div class="comment-form">
-              <p class="cf-title">Пікір қалдыру</p>
-              <div class="cf-stars">
-                <span
-                    v-for="i in 5" :key="i"
-                    class="cf-star" :class="{ on: i <= myRating }"
-                    @click="myRating = i"
-                >★</span>
-              </div>
-              <textarea v-model="myComment" class="cf-input" placeholder="Пікіріңізді жазыңыз…" rows="3" />
-              <button class="cf-submit" @click="submitComment">
-                <i class="pi pi-send" /> Жіберу
-              </button>
-            </div>
-          </div>
-
-        </main>
-
-        <!-- ── Right: Sidebar ─────────────────────────── -->
-        <aside class="detail-sidebar">
-
-          <!-- Instructor card -->
-          <div class="instructor-card">
-            <div class="ic-avatar">{{ lesson.author[0] }}</div>
-            <div class="ic-info">
-              <p class="ic-name">{{ lesson.author }}</p>
-              <p class="ic-role">Әдебиет оқытушысы</p>
-              <div class="ic-stats">
-                <span><i class="pi pi-book" /> 12 сабақ</span>
-                <span><i class="pi pi-users" /> 4.2к оқушы</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Lesson info -->
-          <div class="info-card">
-            <p class="ic-head"><i class="pi pi-info-circle" /> Сабақ туралы</p>
-            <ul class="info-list">
-              <li v-for="info in lessonInfo" :key="info.label">
-                <span class="il-label"><i :class="'pi ' + info.icon" /> {{ info.label }}</span>
-                <span class="il-val">{{ info.val }}</span>
-              </li>
-            </ul>
-          </div>
-
-          <!-- Related lessons -->
-          <div class="related-card">
-            <p class="ic-head"><i class="pi pi-list" /> Ұқсас сабақтар</p>
-            <div class="related-list">
-              <div
-                  v-for="rel in relatedLessons"
-                  :key="rel.id"
-                  class="related-item"
-                  @click="$router.push(`/lessons/${rel.id}`)"
-              >
-                <div class="ri-thumb-wrap">
-                  <img :src="rel.thumb" :alt="rel.title" class="ri-thumb" />
-                  <span class="ri-type" :class="rel.type">
-                    <i :class="'pi ' + typeIcon(rel.type)" />
-                  </span>
-                </div>
-                <div class="ri-body">
-                  <p class="ri-title">{{ rel.title }}</p>
-                  <span class="ri-meta">{{ rel.duration }} · {{ rel.author }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-        </aside>
-      </div>
-    </div>
-
-  </div>
-</template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import * as XLSX from 'xlsx'
+import VideoPlayer from "@/components/VideoPlayer.vue";
+import PdfViewer from "@/components/PdfViewer.vue";
+import KonspektViewer from "@/components/KonspektViewer.vue";
+
+// ─── Import viewer components ─────────────────────────
 
 const route  = useRoute()
 const router = useRouter()
 
-// ─── Lesson registry ──────────────────────────────────
-const LESSONS = {
-  1: {
-    id: 1, type: 'video', topic: 'classic', level: 'beginner',
-    title: 'Абай Құнанбайұлының өмірі мен шығармашылығы',
-    description: 'Ұлы ақынның туған жылынан бастап соңғы туындыларына дейінгі толық шығармашылық жолы. Абайдың поэзиясы, прозасы және ағартушылық қызметі кеңінен қарастырылады.',
-    author: 'Айгүл Сейткали', date: '20 сәуір, 2026', duration: '45:20',
-    views: '12 840', rating: 4.9, reviews: 284, progress: 65,
-    students: '3 240', materialsCount: 5,
-    thumb: 'https://images.unsplash.com/photo-1476820865390-c52aeebb9891?w=1200&q=85',
-    materials: [
-      { id: 1, title: 'Сабақ конспекті',       type: 'pdf',  size: '1.2 MB' },
-      { id: 2, title: 'Тест сұрақтары',         type: 'docx', size: '245 KB' },
-      { id: 3, title: 'Абай өлеңдері жинағы',  type: 'pdf',  size: '3.8 MB' },
-      { id: 4, title: 'Хронология кестесі',    type: 'pdf',  size: '520 KB' },
-      { id: 5, title: 'Қосымша ресурстар',     type: 'link', size: '—' },
-    ],
-    comments: [
-      { id: 1, author: 'Нұрия Алиева',   date: '22 сәуір', rating: 5, text: 'Өте сапалы сабақ! Абайдың шығармашылығы туралы жаңа нәрселер білдім.' },
-      { id: 2, author: 'Бекзат Омаров',  date: '21 сәуір', rating: 5, text: 'Оқытушы материалды өте түсінікті жеткізді. Рахмет!' },
-      { id: 3, author: 'Айдана Смаилова',date: '19 сәуір', rating: 4, text: 'Сабақ қызықты, бірақ кейбір тараулар тезірек өтілсе болатын еді.' },
-    ],
-    content: [],
-  },
-  2: {
-    id: 2, type: 'text', topic: 'poetry', level: 'intermediate',
-    title: 'Мұқағали Мақатаев лирикасының ерекшеліктері',
-    description: 'Ақынның поэтикалық тілі, образ жүйесі және лирикалық кейіпкері туралы толық конспект.',
-    author: 'Берік Әшімов', date: '18 сәуір, 2026', duration: '25 мин',
-    views: '8 210', rating: 4.8, reviews: 196, progress: null,
-    students: '2 180', materialsCount: 3,
-    thumb: 'https://images.unsplash.com/photo-1455390582262-044cdead277a?w=1200&q=85',
-    materials: [
-      { id: 1, title: 'Конспект (PDF)',         type: 'pdf',  size: '890 KB' },
-      { id: 2, title: 'Өлең мысалдары',         type: 'pdf',  size: '1.1 MB' },
-      { id: 3, title: 'Терминдер сөздігі',     type: 'docx', size: '180 KB' },
-    ],
-    comments: [
-      { id: 1, author: 'Салтанат Нурова', date: '20 сәуір', rating: 5, text: 'Мұқағали поэзиясын жаңаша түсіндім. Керемет!' },
-      { id: 2, author: 'Ерлан Касымов',  date: '18 сәуір', rating: 4, text: 'Материал тереңдетілген, ғылыми деңгейде жазылған.' },
-    ],
-    content: [
-      { type: 'heading',    text: 'Кіріспе' },
-      { type: 'paragraph',  text: 'Мұқағали Мақатаев (1931–1976) — қазақ лирикасының классигі. Оның поэзиясы табиғат суреттері мен адам жан дүниесінің тереңдігімен ерекшеленеді.' },
-      { type: 'quote',      text: 'Өмір — өзен, ағады да кетеді, / Артынан кім іздеп тауып жетеді?', cite: 'Мұқағали Мақатаев' },
-      { type: 'subheading', text: '1. Поэтикалық тіл ерекшеліктері' },
-      { type: 'paragraph',  text: 'Ақын образ жасауда дәстүрлі қазақ поэзиясының тәсілдерін жаңашыл тұрғыдан пайдаланды. Оның лексикасы — қарапайым, бірақ тереңдікке толы.' },
-      { type: 'list',       items: ['Табиғат образдарының молдығы', 'Ішкі монологтың кең қолданылуы', 'Философиялық сарын', 'Романтикалық идеал'] },
-      { type: 'highlight',  text: 'Мұқағали поэзиясындағы "Жер", "Су", "Жел" образдары — жай суреттеу емес, терең символикалық мағынаға ие.' },
-      { type: 'subheading', text: '2. Лирикалық кейіпкер' },
-      { type: 'paragraph',  text: 'Ақынның лирикалық кейіпкері — ізденуші, сезімтал, өз халқын сүйетін азамат. Ол табиғатпен бірлікте, заманымен қайшылықта бейнеленеді.' },
-      { type: 'paragraph',  text: 'Лирикалық "мен" образы Мұқағали поэзиясында тұтас философиялық тұжырымдаманы қалыптастырады. Бұл — романтикалық дәстүрдің ұлттық поэзиядағы жаңғыруы.' },
-    ],
-  },
-}
-
-const lessonId = Number(route.params.id) || 1
-const lesson   = LESSONS[lessonId] ?? LESSONS[2]
-
-// ─── Helpers ──────────────────────────────────────────
-const typeIcons  = { video: 'pi-play-circle', text: 'pi-file-edit', pdf: 'pi-file-pdf' }
-const typeLabels = { video: 'Видео сабақ', text: 'Конспект', pdf: 'PDF' }
-const topicNames = {
-  classic: 'Классика', poetry: 'Поэзия', prose: 'Проза',
-  history: 'Тарихи', modern: 'Заманауи', theory: 'Теория',
-}
-const levelLabels = { beginner: 'Бастауыш', intermediate: 'Орта', advanced: 'Жоғары' }
-const matIcons    = { pdf: 'pi-file-pdf', docx: 'pi-file-word', link: 'pi-link' }
-
-function typeIcon(t)  { return typeIcons[t]  || 'pi-book' }
-function typeLabel(t) { return typeLabels[t] || t }
-function topicName(t) { return topicNames[t] || t }
-function levelLabel(l){ return levelLabels[l] || l }
-function matIcon(t)   { return matIcons[t]   || 'pi-file' }
+const EXCEL_PATH = '/src/assets/datas/Sabaqtar_MB.xlsx'
 
 // ─── State ────────────────────────────────────────────
-const activeTab     = ref('content')
-const saved         = ref(false)
-const playing       = ref(false)
-const showControls  = ref(true)
-const muted         = ref(false)
-const videoProgress = ref(lesson.progress || 0)
-const videoTime     = ref(0)
-const playbackSpeed = ref(1)
-const userNotes     = ref('')
-const myComment     = ref('')
-const myRating      = ref(0)
-const speeds        = [0.5, 0.75, 1, 1.25, 1.5, 2]
+const status   = ref('loading')
+const errorMsg = ref('')
+const lesson   = ref(null)
+const chapters = ref([])
+const materials= ref([])
+const comments = ref([])
 
-// ─── Tabs ─────────────────────────────────────────────
-const detailTabs = [
-  { key: 'content',   label: 'Мазмұн',    icon: 'pi-play-circle' },
-  { key: 'materials', label: 'Материалдар', icon: 'pi-folder'    },
-  { key: 'notes',     label: 'Конспект',  icon: 'pi-pencil'      },
-  { key: 'comments',  label: `Пікірлер (${lesson.comments?.length || 0})`, icon: 'pi-comments' },
-]
+const activeTab    = ref('content')
+const activeCh     = ref(1)
+const saved        = ref(false)
+const notes        = ref('')
+const myComment    = ref('')
+const myRating     = ref(0)
+const videoProgress= ref(0)
 
-// ─── Lesson info ──────────────────────────────────────
-const lessonInfo = [
-  { icon: 'pi-clock',       label: 'Ұзақтығы',   val: lesson.duration     },
-  { icon: 'pi-tag',         label: 'Тақырып',    val: topicName(lesson.topic)  },
-  { icon: 'pi-chart-bar',   label: 'Деңгей',     val: levelLabel(lesson.level) },
-  { icon: 'pi-calendar',    label: 'Жарияланды', val: lesson.date          },
-  { icon: 'pi-users',       label: 'Оқушылар',   val: lesson.students      },
-  { icon: 'pi-star',        label: 'Рейтинг',    val: `${lesson.rating} / 5` },
-]
+// ─── Init ─────────────────────────────────────────────
+onMounted(() => init())
+watch(() => [route.params.type, route.params.id], () => init())
 
-// ─── Related (mock) ───────────────────────────────────
-const relatedLessons = [
-  {
-    id: lesson.id === 1 ? 2 : 1, type: lesson.id === 1 ? 'text' : 'video',
-    title: lesson.id === 1 ? 'Мұқағали Мақатаев лирикасы' : 'Абай Құнанбайұлы',
-    author: lesson.id === 1 ? 'Берік Әшімов' : 'Айгүл Сейткали',
-    duration: lesson.id === 1 ? '25 мин' : '45:20',
-    thumb: lesson.id === 1
-        ? 'https://images.unsplash.com/photo-1455390582262-044cdead277a?w=200&q=75'
-        : 'https://images.unsplash.com/photo-1476820865390-c52aeebb9891?w=200&q=75',
-  },
-  {
-    id: 3, type: 'pdf',
-    title: '«Абай жолы» эпопеясының талдауы',
-    author: 'Зарина Нұрланова', duration: '48 бет',
-    thumb: 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=200&q=75',
-  },
-  {
-    id: 4, type: 'video',
-    title: 'Қазақ эпостарының ерекшеліктері',
-    author: 'Мадина Оспанова', duration: '38:45',
-    thumb: 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?w=200&q=75',
-  },
-]
+async function init() {
+  const type = String(route.params.type || 'video')
+  const id   = Number(route.params.id   || 1)
+  status.value  = 'loading'
+  errorMsg.value = ''
+  lesson.value   = null
+  chapters.value = []
+  materials.value= []
+  comments.value = []
+  notes.value    = localStorage.getItem(`lesson_notes_${type}_${id}`) || ''
+  await loadFromExcel(type, id)
+}
+
+async function loadFromExcel(type, id) {
+  try {
+    const res = await fetch(EXCEL_PATH)
+    if (!res.ok) throw new Error(`Excel файл жүктелмеді (${res.status}): ${EXCEL_PATH}`)
+    const buf = await res.arrayBuffer()
+    const wb  = XLSX.read(buf, { type: 'array' })
+
+    // 1. Lesson
+    const sheetName = { video:'🎬 Видео сабақтар', text:'📄 Конспекттер', pdf:'📑 PDF материалдар' }[type]
+    if (!sheetName) throw new Error(`Белгісіз тип: "${type}"`)
+    if (!wb.SheetNames.includes(sheetName)) throw new Error(`Excel-де «${sheetName}» беті жоқ`)
+
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { range: 5, header: 1, defval: '' })
+    const row  = rows.find(r => Number(r[1]) === id)
+    if (!row) { status.value = 'notfound'; return }
+
+    lesson.value = {
+      id, type,
+      title:       String(row[2]  || ''),
+      author:      String(row[3]  || ''),
+      fileUrl:     String(row[4]  || ''),
+      cover:       String(row[5]  || defaultCover(type)),
+      duration:    String(row[6]  || ''),
+      level:       String(row[7]  || 'Орташа'),
+      topic:       String(row[8]  || ''),
+      category:    String(row[9]  || ''),
+      description: String(row[10] || ''),
+    }
+
+    // 2. Chapters
+    if (wb.SheetNames.includes('📚 Тараулар')) {
+      chapters.value = XLSX.utils.sheet_to_json(wb.Sheets['📚 Тараулар'], { range: 5, header: 1, defval: '' })
+          .filter(r => Number(r[1]) === id && String(r[2]) === type && String(r[3]).trim())
+          .map(r => ({ title: String(r[3]||''), time: String(r[4]||''), content: String(r[5]||''), fileUrl: String(r[6]||''), order: Number(r[7]||0) }))
+          .sort((a,b) => a.order - b.order)
+    }
+
+    // 3. Materials
+    if (wb.SheetNames.includes('📎 Материалдар')) {
+      materials.value = XLSX.utils.sheet_to_json(wb.Sheets['📎 Материалдар'], { range: 5, header: 1, defval: '' })
+          .filter(r => Number(r[1]) === id && String(r[2]) === type && String(r[3]).trim())
+          .map(r => ({ title: String(r[3]||''), fileType: String(r[4]||'pdf').toLowerCase(), size: String(r[5]||''), fileUrl: String(r[6]||''), order: Number(r[7]||0) }))
+          .sort((a,b) => a.order - b.order)
+    }
+
+    // 4. Comments
+    if (wb.SheetNames.includes('💬 Пікірлер')) {
+      comments.value = XLSX.utils.sheet_to_json(wb.Sheets['💬 Пікірлер'], { range: 5, header: 1, defval: '' })
+          .filter(r => Number(r[1]) === id && String(r[2]) === type && String(r[3]).trim())
+          .map(r => ({ author: String(r[3]||''), date: String(r[4]||''), rating: Number(r[5]||5), text: String(r[6]||''), order: Number(r[7]||0) }))
+          .sort((a,b) => a.order - b.order)
+    }
+
+    status.value = 'ready'
+  } catch (e) {
+    status.value   = 'error'
+    errorMsg.value = e.message
+    console.error('[LessonDetail]', e)
+  }
+}
+
+function defaultCover(t) {
+  return { video:'https://images.unsplash.com/photo-1476820865390-c52aeebb9891?w=900&q=80', text:'https://images.unsplash.com/photo-1455390582262-044cdead277a?w=900&q=80', pdf:'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=900&q=80' }[t]
+}
+
+// ─── Computed ─────────────────────────────────────────
+const avgRating = computed(() => !comments.value.length ? 0 : comments.value.reduce((s,c) => s+c.rating,0)/comments.value.length)
+const notesWordCount = computed(() => notes.value.trim() ? notes.value.trim().split(/\s+/).length : 0)
+
+const tabList = computed(() => [
+  { key:'content',   label:'Мазмұн',                                icon:'pi-play-circle' },
+  { key:'materials', label:`Материалдар (${materials.value.length})`, icon:'pi-folder'    },
+  { key:'notes',     label:'Конспект',                               icon:'pi-pencil'     },
+  { key:'comments',  label:`Пікірлер (${comments.value.length})`,    icon:'pi-comments'   },
+])
+
+const infoRows = computed(() => lesson.value ? [
+  { icon:'pi-clock',     label:'Ұзақтығы',    val: lesson.value.duration },
+  { icon:'pi-tag',       label:'Тақырып',     val: lesson.value.topic },
+  { icon:'pi-chart-bar', label:'Деңгей',      val: lesson.value.level },
+  { icon:'pi-folder',    label:'Санат',        val: lesson.value.category },
+  { icon:'pi-list',      label:'Тараулар',    val: chapters.value.length + ' бөлім' },
+  { icon:'pi-paperclip', label:'Материалдар', val: materials.value.length + ' файл' },
+  { icon:'pi-star',      label:'Рейтинг',     val: avgRating.value > 0 ? avgRating.value.toFixed(1)+' / 5' : '—' },
+] : [])
+
+// ─── Helpers ──────────────────────────────────────────
+function typeIcon(t)  { return { video:'pi-play-circle', text:'pi-file-edit', pdf:'pi-file-pdf' }[t] || 'pi-book' }
+function typeLabel(t) { return { video:'Видео сабақ', text:'Конспект', pdf:'PDF материал' }[t] || t }
+function matIcon(t)   { return { pdf:'pi-file-pdf', docx:'pi-file-word', link:'pi-link', mp4:'pi-video' }[t] || 'pi-file' }
+function lvlClass(l)  { return l === 'Оңай' ? 'lv-easy' : l === 'Жоғары' ? 'lv-hard' : 'lv-mid' }
 
 // ─── Actions ──────────────────────────────────────────
-function startLesson() { if (lesson.type === 'video') playing.value = true }
-function togglePlay()  { playing.value = !playing.value }
-function toggleMute()  { muted.value = !muted.value }
-function toggleSave()  { saved.value = !saved.value }
-function shareLesson() { navigator.clipboard?.writeText(window.location.href) }
-function toggleFullscreen() {
-  if (!document.fullscreenElement) document.documentElement.requestFullscreen()
-  else document.exitFullscreen()
+function scrollToContent() {
+  document.getElementById('lesson-content-anchor')?.scrollIntoView({ behavior: 'smooth' })
 }
-function skip(sec) {
-  const total  = parseDuration(lesson.duration)
-  videoTime.value = Math.max(0, Math.min(videoTime.value + sec, total))
-  videoProgress.value = Math.round((videoTime.value / total) * 100)
+function saveNotes() {
+  localStorage.setItem(`lesson_notes_${route.params.type}_${route.params.id}`, notes.value)
 }
-function seekVideo(e) {
-  const rect  = e.currentTarget.getBoundingClientRect()
-  const pct   = Math.max(0, Math.min((e.clientX - rect.left) / rect.width, 1))
-  const total = parseDuration(lesson.duration)
-  videoTime.value     = Math.round(pct * total)
-  videoProgress.value = Math.round(pct * 100)
-}
-function parseDuration(str) {
-  const parts = str.split(':').map(Number)
-  return parts.length === 2 ? parts[0] * 60 + parts[1] : parts[0]
-}
-function formatTime(s) {
-  const m = Math.floor(s / 60)
-  const sec = s % 60
-  return `${m}:${String(sec).padStart(2, '0')}`
-}
-function saveNotes() { localStorage.setItem(`notes_${lesson.id}`, userNotes.value) }
 function submitComment() {
   if (!myComment.value.trim()) return
-  lesson.comments?.unshift({
-    id: Date.now(), author: 'Сіз', date: 'Қазір', rating: myRating.value || 5, text: myComment.value,
-  })
-  myComment.value = ''
-  myRating.value  = 0
+  comments.value.unshift({ author:'Сіз', date: new Date().toLocaleDateString('kk-KZ'), rating: myRating.value||5, text: myComment.value, order:0 })
+  myComment.value = ''; myRating.value = 0
 }
-
-onMounted(() => {
-  userNotes.value = localStorage.getItem(`notes_${lesson.id}`) || ''
-  if (lesson.progress) videoProgress.value = lesson.progress
-})
 </script>
+<template>
+  <div class="lesson-detail-page">
+
+    <!-- ══ LOADING ══════════════════════════════════════ -->
+    <div v-if="status === 'loading'" class="state-screen">
+      <div class="spinner"/>
+      <p>Сабақ жүктелуде…</p>
+      <p class="state-hint">{{ EXCEL_PATH }}</p>
+    </div>
+
+    <!-- ══ ERROR ════════════════════════════════════════ -->
+    <div v-else-if="status === 'error'" class="state-screen error">
+      <i class="pi pi-exclamation-triangle"/>
+      <p>{{ errorMsg }}</p>
+      <p class="state-hint">Excel файлын /public/data/ папкасына салыңыз</p>
+      <div class="state-btns">
+        <button class="btn-gold" @click="init"><i class="pi pi-refresh"/> Қайта жүктеу</button>
+        <button class="btn-outline" @click="$router.back()"><i class="pi pi-arrow-left"/> Артқа</button>
+      </div>
+    </div>
+
+    <!-- ══ NOT FOUND ════════════════════════════════════ -->
+    <div v-else-if="status === 'notfound'" class="state-screen error">
+      <i class="pi pi-search"/>
+      <p>Сабақ табылмады</p>
+      <p class="state-hint">ID: {{ route.params.id }} · Тип: {{ route.params.type }}</p>
+      <button class="btn-outline" @click="$router.back()">
+        <i class="pi pi-arrow-left"/> Сабақтар тізіміне
+      </button>
+    </div>
+
+    <!-- ══ READY ══════════════════════════════════════════ -->
+    <template v-else-if="status === 'ready' && lesson">
+
+      <!-- ── HERO ─────────────────────────────────────── -->
+      <section class="hero" :class="lesson.type">
+        <div class="hero-bg">
+          <img :src="lesson.cover" class="hero-bg-img" :alt="lesson.title"/>
+          <div class="hero-gradient"/>
+          <div class="hero-dots"/>
+        </div>
+
+        <div class="hero-wrap">
+          <!-- Breadcrumb -->
+          <nav class="breadcrumb">
+            <button class="bc-btn" @click="$router.push('/')"><i class="pi pi-home"/></button>
+            <span class="bc-sep">›</span>
+            <button class="bc-btn" @click="$router.push('/lessons')">Сабақтар</button>
+            <span class="bc-sep">›</span>
+            <span class="bc-cur">{{ lesson.title }}</span>
+          </nav>
+
+          <div class="hero-grid">
+            <!-- Left -->
+            <div class="hero-left">
+              <div class="badge-row">
+                <span class="badge-type" :class="lesson.type">
+                  <i :class="'pi ' + typeIcon(lesson.type)"/>
+                  {{ typeLabel(lesson.type) }}
+                </span>
+                <span class="badge-level" :class="lvlClass(lesson.level)">{{ lesson.level }}</span>
+                <span class="badge-topic">{{ lesson.topic }}</span>
+              </div>
+
+              <h1 class="hero-title">{{ lesson.title }}</h1>
+              <p class="hero-desc">{{ lesson.description }}</p>
+
+              <div class="hero-meta">
+                <div class="author-row">
+                  <div class="author-ava">{{ lesson.author?.[0] || 'A' }}</div>
+                  <div>
+                    <span class="author-role">Оқытушы</span>
+                    <span class="author-name">{{ lesson.author }}</span>
+                  </div>
+                </div>
+                <div class="meta-chips">
+                  <span class="mc"><i class="pi pi-clock"/>{{ lesson.duration }}</span>
+                  <span class="mc"><i class="pi pi-folder"/>{{ lesson.category }}</span>
+                  <span class="mc"><i class="pi pi-list"/>{{ chapters.length }} тарау</span>
+                  <span class="mc"><i class="pi pi-paperclip"/>{{ materials.length }} файл</span>
+                </div>
+              </div>
+
+              <div class="hero-stars" v-if="avgRating > 0">
+                <span v-for="i in 5" :key="i" class="hstar" :class="{ on: i <= Math.round(avgRating) }">★</span>
+                <span class="hstar-num">{{ avgRating.toFixed(1) }}</span>
+                <span class="hstar-cnt">({{ comments.length }} пікір)</span>
+              </div>
+
+              <div class="hero-btns">
+                <button class="btn-gold" @click="scrollToContent">
+                  <i :class="'pi ' + (lesson.type === 'video' ? 'pi-play' : 'pi-book')"/>
+                  {{ lesson.type === 'video' ? 'Видеоны қарау' : 'Оқуды бастау' }}
+                </button>
+                <button class="btn-ghost" @click="saved = !saved">
+                  <i :class="saved ? 'pi pi-bookmark-fill' : 'pi pi-bookmark'"/>
+                  {{ saved ? 'Сақталды' : 'Сақтау' }}
+                </button>
+              </div>
+            </div>
+
+            <!-- Right: card -->
+            <div class="hero-card">
+              <div class="hc-thumb" @click="scrollToContent">
+                <img :src="lesson.cover" class="hc-img"/>
+                <div class="hc-dark"/>
+                <button v-if="lesson.type === 'video'" class="hc-play">
+                  <i class="pi pi-play"/>
+                </button>
+                <div v-else class="hc-type-ico">
+                  <i :class="'pi ' + typeIcon(lesson.type)"/>
+                </div>
+              </div>
+              <div class="hc-rows">
+                <div class="hc-row"><i class="pi pi-clock"/>{{ lesson.duration }}</div>
+                <div class="hc-row"><i class="pi pi-list"/>{{ chapters.length }} тарау</div>
+                <div class="hc-row"><i class="pi pi-paperclip"/>{{ materials.length }} материал</div>
+                <div class="hc-row hc-db">
+                  <i class="pi pi-database"/>Excel дерекқордан
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── BODY ─────────────────────────────────────── -->
+      <div class="body-wrap">
+        <div class="body-grid">
+
+          <!-- Main column -->
+          <main class="main-col">
+
+            <!-- Tab nav -->
+            <div class="tab-nav" id="lesson-content-anchor">
+              <button
+                  v-for="tab in tabList" :key="tab.key"
+                  class="tab-btn" :class="{ active: activeTab === tab.key }"
+                  @click="activeTab = tab.key"
+              >
+                <i :class="'pi ' + tab.icon"/>{{ tab.label }}
+              </button>
+            </div>
+
+            <!-- ══ TAB: МАЗМҰН ════════════════════════ -->
+            <div v-show="activeTab === 'content'" class="tab-panel">
+
+              <!-- ─── VIDEO ────────────────────────── -->
+              <VideoPlayer
+                  v-if="lesson.type === 'video'"
+                  :src="lesson.fileUrl"
+                  :poster="lesson.cover"
+                  :title="lesson.title"
+                  :duration="lesson.duration"
+                  @progress="videoProgress = $event"
+              />
+
+              <!-- ─── PDF ──────────────────────────── -->
+              <PdfViewer
+                  v-else-if="lesson.type === 'pdf'"
+                  :src="lesson.fileUrl"
+                  :title="lesson.title"
+              />
+
+              <!-- ─── KONSPEKT (TEXT) ──────────────── -->
+              <KonspektViewer
+                  v-else-if="lesson.type === 'text'"
+                  :src="lesson.fileUrl"
+                  :title="lesson.title"
+              />
+
+              <!-- Chapters list -->
+              <div v-if="chapters.length" class="chapters-panel">
+                <div class="panel-head">
+                  <i class="pi pi-list-check"/>Тараулар
+                  <span class="panel-cnt">{{ chapters.length }}</span>
+                </div>
+                <div
+                    v-for="ch in chapters"
+                    :key="ch.order"
+                    class="chapter-row"
+                    :class="{ active: activeCh === ch.order }"
+                    @click="activeCh = ch.order"
+                >
+                  <span class="ch-num">{{ ch.order }}</span>
+                  <div class="ch-body">
+                    <span class="ch-title">{{ ch.title }}</span>
+                    <span class="ch-sub">{{ ch.content }}</span>
+                  </div>
+                  <span class="ch-time">{{ ch.time }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- ══ TAB: МАТЕРИАЛДАР ════════════════ -->
+            <div v-show="activeTab === 'materials'" class="tab-panel">
+              <div v-if="materials.length" class="materials-list">
+                <div v-for="mat in materials" :key="mat.order" class="mat-row">
+                  <div class="mat-ico" :class="mat.fileType">
+                    <i :class="'pi ' + matIcon(mat.fileType)"/>
+                  </div>
+                  <div class="mat-info">
+                    <span class="mat-name">{{ mat.title }}</span>
+                    <span class="mat-sub">{{ mat.size }} · {{ (mat.fileType || '').toUpperCase() }}</span>
+                    <code class="mat-path">{{ mat.fileUrl }}</code>
+                  </div>
+                  <a :href="mat.fileUrl" download class="mat-dl">
+                    <i class="pi pi-download"/>Жүктеу
+                  </a>
+                </div>
+              </div>
+              <div v-else class="empty-state">
+                <i class="pi pi-paperclip"/>
+                <p>Материал жоқ</p>
+                <span class="empty-hint">«📎 Материалдар» бетіне жол қосыңыз</span>
+              </div>
+            </div>
+
+            <!-- ══ TAB: КОНСПЕКТ (Notes) ══════════ -->
+            <div v-show="activeTab === 'notes'" class="tab-panel">
+              <textarea
+                  v-model="notes"
+                  class="notes-ta"
+                  placeholder="Конспект жазыңыз…"
+                  rows="14"
+              />
+              <div class="notes-bar">
+                <span class="notes-hint"><i class="pi pi-info-circle"/>{{ notesWordCount }} сөз</span>
+                <button class="btn-gold btn-sm" @click="saveNotes">
+                  <i class="pi pi-check"/>Сақтау
+                </button>
+              </div>
+            </div>
+
+            <!-- ══ TAB: ПІКІРЛЕР ══════════════════ -->
+            <div v-show="activeTab === 'comments'" class="tab-panel">
+              <div v-if="comments.length" class="comments-list">
+                <div v-for="c in comments" :key="c.order" class="comment-card">
+                  <div class="cc-ava">{{ c.author?.[0] || '?' }}</div>
+                  <div class="cc-body">
+                    <div class="cc-top">
+                      <span class="cc-name">{{ c.author }}</span>
+                      <span class="cc-date">{{ c.date }}</span>
+                    </div>
+                    <div class="cc-stars">
+                      <span v-for="i in 5" :key="i" class="cstar" :class="{ on: i <= c.rating }">★</span>
+                      <span class="cstar-num">{{ c.rating }}.0</span>
+                    </div>
+                    <p class="cc-text">{{ c.text }}</p>
+                  </div>
+                </div>
+              </div>
+              <div v-else class="empty-state">
+                <i class="pi pi-comments"/>
+                <p>Пікір жоқ</p>
+              </div>
+
+              <div class="comment-form">
+                <h4 class="cf-head">Пікір қалдыру</h4>
+                <div class="cf-stars">
+                  <span v-for="i in 5" :key="i" class="cf-star" :class="{ on: i <= myRating }" @click="myRating = i">★</span>
+                </div>
+                <textarea v-model="myComment" class="cf-ta" placeholder="Пікіріңізді жазыңыз…" rows="3"/>
+                <button class="btn-gold btn-sm" @click="submitComment">
+                  <i class="pi pi-send"/>Жіберу
+                </button>
+              </div>
+            </div>
+
+          </main>
+
+          <!-- Sidebar -->
+          <aside class="sidebar-col">
+
+            <div class="sb-card">
+              <div class="inst-row">
+                <div class="inst-ava">{{ lesson.author?.[0] || 'A' }}</div>
+                <div>
+                  <p class="inst-name">{{ lesson.author }}</p>
+                  <p class="inst-role">Әдебиет оқытушысы</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="sb-card">
+              <div class="sb-head"><i class="pi pi-info-circle"/>Сабақ туралы</div>
+              <ul class="info-list">
+                <li v-for="row in infoRows" :key="row.label">
+                  <span class="il-label"><i :class="'pi ' + row.icon"/>{{ row.label }}</span>
+                  <span class="il-val">{{ row.val }}</span>
+                </li>
+              </ul>
+            </div>
+
+            <!-- Type-specific info card -->
+            <div class="sb-card type-card" :class="lesson.type">
+              <div class="tc-icon"><i :class="'pi ' + typeIcon(lesson.type)"/></div>
+              <div>
+                <span class="tc-title">{{ typeLabel(lesson.type) }}</span>
+                <span class="tc-desc">
+                  <template v-if="lesson.type === 'video'">
+                    YouTube немесе MP4 форматта ойнатылады
+                  </template>
+                  <template v-else-if="lesson.type === 'pdf'">
+                    vue-pdf-embed арқылы іштен ашылады
+                  </template>
+                  <template v-else>
+                    Markdown/текст форматты конспект
+                  </template>
+                </span>
+              </div>
+            </div>
+
+            <div class="sb-card sb-dark">
+              <i class="pi pi-database sb-db-icon"/>
+              <div>
+                <span class="sb-db-title">Дерекқор көзі</span>
+                <span class="sb-db-file">Sabaqtar_MB.xlsx</span>
+                <span class="sb-db-desc">Сабақтар · Тараулар · Материалдар · Пікірлер</span>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </template>
+  </div>
+</template>
+
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,300&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,300&display=swap');
 
 .lesson-detail-page {
-  --ink:       #1a1208;
-  --parchment: #faf6ef;
-  --gold:      #c4922a;
-  --gold-l:    #e8b94f;
-  --rust:      #8b3a1e;
-  --border:    #d9cdb8;
-  --shadow:    0 4px 24px rgba(26,18,8,.10);
-  --shadow-lg: 0 12px 48px rgba(26,18,8,.18);
-  background: var(--parchment);
-  font-family: 'Source Serif 4', Georgia, serif;
-  min-height: 100vh;
+  --ink:    #1a1208; --parch: #faf6ef; --gold: #c4922a; --gold-l:#e8b94f;
+  --rust:   #8b3a1e; --sage:  #3a5c3a; --navy: #2a3a5c; --border:#d9cdb8;
+  --dark:   #130e07; --shd: 0 4px 24px rgba(26,18,8,.10); --shd-lg: 0 12px 48px rgba(26,18,8,.18);
+  background: var(--parch); font-family: 'Source Serif 4', Georgia, serif;
+  color: var(--ink); min-height: 100vh;
 }
 
-/* ══ HERO ══ */
-.lesson-hero { position: relative; overflow: hidden; padding-bottom: 3rem; }
-.lesson-hero.video { --hero-accent: #8b3a1e; }
-.lesson-hero.text  { --hero-accent: #4a5e4c; }
-.lesson-hero.pdf   { --hero-accent: #2a3a5c; }
+/* ── States ── */
+.state-screen { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1rem; padding:8rem 2rem; min-height:60vh; text-align:center; color:#7a6a52; }
+.state-screen.error i { font-size:2.5rem; color:var(--gold); }
+.state-hint { font-size:.72rem; color:#b0a090; font-family:monospace; margin:0; }
+.state-btns { display:flex; gap:.75rem; flex-wrap:wrap; justify-content:center; }
+.spinner { width:44px; height:44px; border:3px solid rgba(196,146,42,.18); border-top-color:var(--gold); border-radius:50%; animation:spin .75s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
 
-.hero-bg { position: absolute; inset: 0; }
-.hero-bg-img {
-  width: 100%; height: 100%; object-fit: cover;
-  filter: brightness(.25) saturate(.6);
-}
-.hero-bg-overlay {
-  position: absolute; inset: 0;
-  background: linear-gradient(135deg, rgba(26,18,8,.92) 0%, rgba(26,18,8,.7) 60%, rgba(26,18,8,.5) 100%);
-}
-.hero-pattern {
-  position: absolute; inset: 0;
-  background-image: radial-gradient(circle, rgba(196,146,42,.06) 1px, transparent 1px);
-  background-size: 28px 28px;
-}
+/* ── Buttons ── */
+.btn-gold { display:inline-flex; align-items:center; gap:.5rem; background:var(--gold); color:#fff; border:none; padding:.65rem 1.5rem; border-radius:2px; font-family:'Source Serif 4',serif; font-size:.875rem; font-weight:700; cursor:pointer; transition:background .2s; }
+.btn-gold:hover { background:var(--gold-l); }
+.btn-gold.btn-sm { padding:.45rem .95rem; font-size:.8rem; }
+.btn-ghost { display:inline-flex; align-items:center; gap:.45rem; background:transparent; border:1.5px solid rgba(255,255,255,.28); color:rgba(255,255,255,.75); padding:.62rem 1.2rem; border-radius:2px; font-family:'Source Serif 4',serif; font-size:.875rem; cursor:pointer; transition:all .2s; }
+.btn-ghost:hover { border-color:var(--gold); color:var(--gold-l); }
+.btn-outline { display:inline-flex; align-items:center; gap:.45rem; background:transparent; border:1.5px solid var(--border); color:var(--ink); padding:.62rem 1.2rem; border-radius:2px; font-family:'Source Serif 4',serif; font-size:.875rem; cursor:pointer; transition:all .2s; }
+.btn-outline:hover { border-color:var(--gold); color:var(--gold); }
 
-.hero-inner {
-  position: relative; z-index: 2;
-  max-width: 1280px; margin: 0 auto;
-  padding: 1.5rem 1.5rem 0;
-}
+/* ── Hero ── */
+.hero { position:relative; overflow:hidden; }
+.hero-bg { position:absolute; inset:0; }
+.hero-bg-img { width:100%; height:100%; object-fit:cover; filter:brightness(.2) saturate(.5); }
+.hero-gradient { position:absolute; inset:0; background:linear-gradient(120deg,rgba(19,14,7,.97) 0%,rgba(19,14,7,.75) 55%,rgba(19,14,7,.5) 100%); }
+.hero-dots { position:absolute; inset:0; background-image:radial-gradient(circle,rgba(196,146,42,.05) 1px,transparent 1px); background-size:24px 24px; }
+.hero-wrap { position:relative; z-index:2; max-width:1280px; margin:0 auto; padding:1.5rem 1.5rem 3rem; }
+.breadcrumb { display:flex; align-items:center; gap:.4rem; margin-bottom:2rem; flex-wrap:wrap; }
+.bc-btn { background:none; border:none; color:rgba(255,255,255,.38); font-family:'Source Serif 4',serif; font-size:.75rem; cursor:pointer; padding:0; transition:color .2s; }
+.bc-btn:hover { color:var(--gold-l); }
+.bc-sep { color:rgba(255,255,255,.18); font-size:.75rem; }
+.bc-cur { font-size:.75rem; color:var(--gold-l); max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.hero-grid { display:grid; grid-template-columns:1fr 290px; gap:3rem; align-items:start; }
+@media(max-width:900px){ .hero-grid { grid-template-columns:1fr; } }
 
-/* Breadcrumb */
-.breadcrumb { display: flex; align-items: center; gap: .5rem; margin-bottom: 2rem; flex-wrap: wrap; }
-.bc-link {
-  background: none; border: none; color: rgba(255,255,255,.5);
-  font-family: 'Source Serif 4', serif; font-size: .78rem; cursor: pointer;
-  display: flex; align-items: center; gap: .3rem; padding: 0;
-  transition: color .2s;
-}
-.bc-link:hover { color: var(--gold-l); }
-.bc-link i { font-size: .72rem; }
-.bc-sep    { color: rgba(255,255,255,.25); font-size: .75rem; }
-.bc-current { font-size: .78rem; color: var(--gold-l); }
+/* Badges */
+.badge-row { display:flex; flex-wrap:wrap; gap:.45rem; margin-bottom:1rem; }
+.badge-type { display:inline-flex; align-items:center; gap:.3rem; font-size:.6rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; padding:.2rem .58rem; border-radius:1px; color:#fff; }
+.badge-type.video { background:rgba(139,58,30,.9); } .badge-type.text { background:rgba(58,92,58,.9); } .badge-type.pdf { background:rgba(42,58,92,.9); }
+.badge-level { font-size:.6rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; padding:.2rem .55rem; border-radius:1px; }
+.badge-level.lv-easy { background:rgba(232,245,233,.15); color:#81c784; border:1px solid rgba(129,199,132,.35); }
+.badge-level.lv-mid  { background:rgba(255,243,224,.12); color:#ffb74d; border:1px solid rgba(255,183,77,.35); }
+.badge-level.lv-hard { background:rgba(252,228,236,.12); color:#ef9a9a; border:1px solid rgba(239,154,154,.35); }
+.badge-topic { font-size:.6rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--gold-l); border:1px solid rgba(196,146,42,.38); padding:.2rem .55rem; border-radius:1px; }
 
-/* Hero content */
-.hero-content {
-  display: grid; grid-template-columns: 1fr 300px; gap: 3rem; align-items: start;
-  padding-bottom: 2.5rem;
-}
-@media (max-width: 900px) { .hero-content { grid-template-columns: 1fr; } }
+.hero-title { font-family:'Playfair Display',serif; font-size:clamp(1.6rem,3vw,2.5rem); font-weight:900; color:#fff; line-height:1.2; margin:0 0 .85rem; }
+.hero-desc  { font-size:.9rem; color:rgba(255,255,255,.6); line-height:1.7; margin:0 0 1.2rem; font-style:italic; }
 
-.hero-badges { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1.1rem; }
-.type-badge {
-  display: inline-flex; align-items: center; gap: .35rem;
-  font-size: .65rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
-  padding: .22rem .65rem; border-radius: 1px; color: #fff;
-}
-.type-badge.video { background: rgba(139,58,30,.9); }
-.type-badge.text  { background: rgba(74,94,76,.9);  }
-.type-badge.pdf   { background: rgba(42,58,92,.9);  }
-.level-badge {
-  font-size: .62rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
-  padding: .22rem .55rem; border-radius: 1px;
-}
-.level-badge.beginner     { background: rgba(232,245,233,.15); color: #81c784; border: 1px solid rgba(129,199,132,.4); }
-.level-badge.intermediate { background: rgba(255,243,224,.12); color: #ffb74d; border: 1px solid rgba(255,183,77,.4); }
-.level-badge.advanced     { background: rgba(252,228,236,.12); color: #ef9a9a; border: 1px solid rgba(239,154,154,.4); }
-.topic-badge {
-  font-size: .62rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
-  color: var(--gold-l); border: 1px solid rgba(196,146,42,.4);
-  padding: .22rem .55rem; border-radius: 1px;
-}
+.hero-meta { display:flex; flex-wrap:wrap; gap:1.25rem; align-items:center; margin-bottom:1rem; }
+.author-row { display:flex; align-items:center; gap:.6rem; }
+.author-ava  { width:36px; height:36px; border-radius:50%; background:var(--gold); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:.85rem; flex-shrink:0; }
+.author-role { display:block; font-size:.6rem; color:rgba(255,255,255,.3); text-transform:uppercase; letter-spacing:.07em; }
+.author-name { display:block; font-size:.82rem; color:#fff; font-weight:600; }
+.meta-chips  { display:flex; flex-wrap:wrap; gap:.55rem; }
+.mc          { font-size:.72rem; color:rgba(255,255,255,.4); display:flex; align-items:center; gap:.25rem; }
+.mc i        { color:var(--gold); font-size:.65rem; }
 
-.hero-title {
-  font-family: 'Playfair Display', serif;
-  font-size: clamp(1.65rem, 3vw, 2.5rem); font-weight: 900; color: #fff;
-  line-height: 1.2; margin: 0 0 .9rem;
-}
-.hero-desc { font-size: .9rem; color: rgba(255,255,255,.7); line-height: 1.7; margin: 0 0 1.25rem; font-style: italic; }
+.hero-stars  { display:flex; align-items:center; gap:.2rem; margin-bottom:1.4rem; }
+.hstar       { font-size:.95rem; color:rgba(255,255,255,.15); }
+.hstar.on    { color:var(--gold-l); }
+.hstar-num   { font-weight:700; font-size:.82rem; color:#fff; margin-left:.15rem; }
+.hstar-cnt   { font-size:.68rem; color:rgba(255,255,255,.3); }
 
-.hero-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 1.5rem; margin-bottom: 1rem; }
-.meta-author { display: flex; align-items: center; gap: .65rem; }
-.author-avatar {
-  width: 38px; height: 38px; border-radius: 50%;
-  background: var(--gold); color: #fff;
-  display: flex; align-items: center; justify-content: center;
-  font-weight: 700; font-size: .9rem; flex-shrink: 0;
-}
-.author-label { display: block; font-size: .62rem; color: rgba(255,255,255,.4); text-transform: uppercase; letter-spacing: .08em; }
-.author-name  { display: block; font-size: .82rem; color: #fff; font-weight: 600; }
-
-.meta-stats { display: flex; gap: 1rem; flex-wrap: wrap; }
-.ms-item { font-size: .78rem; color: rgba(255,255,255,.5); display: flex; align-items: center; gap: .3rem; }
-.ms-item i { color: var(--gold); font-size: .72rem; }
-
-.hero-rating { display: flex; align-items: center; gap: .25rem; margin-bottom: 1.5rem; }
-.star    { font-size: 1rem; color: rgba(255,255,255,.2); }
-.star.on { color: var(--gold-l); }
-.rating-num { font-weight: 700; font-size: .88rem; color: #fff; margin-left: .2rem; }
-.rating-cnt { font-size: .75rem; color: rgba(255,255,255,.4); }
-
-.hero-cta { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
-.cta-primary {
-  display: inline-flex; align-items: center; gap: .55rem;
-  background: var(--gold); color: #fff; border: none;
-  padding: .72rem 1.75rem; border-radius: 2px;
-  font-family: 'Source Serif 4', serif; font-size: .9rem; font-weight: 700;
-  cursor: pointer; transition: background .22s, transform .2s;
-}
-.cta-primary:hover { background: var(--gold-l); transform: translateY(-1px); }
-.cta-ghost {
-  display: inline-flex; align-items: center; gap: .5rem;
-  background: transparent; border: 1.5px solid rgba(255,255,255,.3); color: rgba(255,255,255,.8);
-  padding: .68rem 1.25rem; border-radius: 2px;
-  font-family: 'Source Serif 4', serif; font-size: .85rem;
-  cursor: pointer; transition: border-color .2s, color .2s;
-}
-.cta-ghost:hover { border-color: var(--gold); color: var(--gold-l); }
-.cta-icon {
-  width: 40px; height: 40px;
-  border: 1.5px solid rgba(255,255,255,.25); border-radius: 2px;
-  background: transparent; color: rgba(255,255,255,.6);
-  display: flex; align-items: center; justify-content: center;
-  font-size: .85rem; cursor: pointer; transition: border-color .2s, color .2s;
-}
-.cta-icon:hover { border-color: var(--gold); color: var(--gold-l); }
+.hero-btns  { display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; }
 
 /* Hero card */
-.hero-card {
-  background: rgba(255,255,255,.07); border: 1px solid rgba(196,146,42,.3);
-  border-radius: 3px; overflow: hidden; backdrop-filter: blur(8px);
-}
-.hc-thumb-wrap { position: relative; height: 200px; overflow: hidden; }
-.hc-thumb { width: 100%; height: 100%; object-fit: cover; filter: brightness(.65); }
-.hc-thumb-overlay { position: absolute; inset: 0; background: rgba(26,18,8,.3); }
-.hc-play {
-  position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
-  width: 52px; height: 52px; border-radius: 50%;
-  background: rgba(196,146,42,.9); border: none; color: #fff;
-  display: flex; align-items: center; justify-content: center; font-size: 1.1rem;
-  cursor: pointer; transition: transform .25s, background .25s;
-}
-.hc-play:hover { transform: translate(-50%,-50%) scale(1.1); background: var(--gold-l); }
-.hc-type-icon {
-  position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
-  font-size: 2.5rem; color: rgba(196,146,42,.7);
-}
-.hc-info { padding: 1rem 1.1rem; display: flex; flex-direction: column; gap: .6rem; }
-.hc-row  { display: flex; align-items: center; gap: .6rem; font-size: .8rem; color: rgba(255,255,255,.65); }
-.hc-row i { color: var(--gold); font-size: .78rem; }
+.hero-card  { background:rgba(255,255,255,.06); border:1px solid rgba(196,146,42,.25); border-radius:3px; overflow:hidden; backdrop-filter:blur(8px); }
+.hc-thumb   { position:relative; height:175px; overflow:hidden; cursor:pointer; }
+.hc-img     { width:100%; height:100%; object-fit:cover; filter:brightness(.55); transition:filter .3s; }
+.hc-thumb:hover .hc-img { filter:brightness(.42); }
+.hc-dark    { position:absolute; inset:0; background:rgba(26,18,8,.2); }
+.hc-play    { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:48px; height:48px; border-radius:50%; background:rgba(196,146,42,.9); border:none; color:#fff; display:flex; align-items:center; justify-content:center; font-size:1rem; cursor:pointer; transition:transform .25s,background .25s; }
+.hc-play:hover { transform:translate(-50%,-50%) scale(1.1); background:var(--gold-l); }
+.hc-type-ico { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:2.25rem; color:rgba(196,146,42,.55); }
+.hc-rows    { padding:.9rem 1rem; display:flex; flex-direction:column; gap:.5rem; }
+.hc-row     { display:flex; align-items:center; gap:.55rem; font-size:.75rem; color:rgba(255,255,255,.5); }
+.hc-row i   { color:var(--gold); font-size:.68rem; }
+.hc-db      { font-size:.68rem; color:var(--gold-l); font-style:italic; border-top:1px solid rgba(196,146,42,.15); padding-top:.5rem; margin-top:.15rem; }
 
-/* ══ BODY ══ */
-.detail-body  { padding: 2.5rem 1.5rem; }
-.detail-inner {
-  max-width: 1280px; margin: 0 auto;
-  display: grid; grid-template-columns: 1fr 320px; gap: 2.5rem;
-}
-@media (max-width: 1024px) { .detail-inner { grid-template-columns: 1fr; } }
+/* ── Body ── */
+.body-wrap { padding:2.5rem 1.5rem; }
+.body-grid { max-width:1280px; margin:0 auto; display:grid; grid-template-columns:1fr 295px; gap:2.5rem; }
+@media(max-width:1024px){ .body-grid { grid-template-columns:1fr; } }
 
-/* Progress block */
-.progress-block {
-  background: #fff; border: 1px solid var(--border); border-radius: 3px;
-  padding: 1.1rem 1.25rem; margin-bottom: 1.5rem;
-  border-left: 3px solid var(--gold);
-}
-.pb-header { display: flex; justify-content: space-between; margin-bottom: .5rem; font-size: .8rem; }
-.pb-label  { color: #7a6a52; }
-.pb-pct    { font-weight: 700; color: var(--gold); }
-.pb-track  { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-bottom: .35rem; }
-.pb-fill   { height: 100%; background: linear-gradient(90deg, var(--gold), var(--gold-l)); border-radius: 3px; transition: width .5s; }
-.pb-hint   { font-size: .72rem; color: #9a8a72; margin: 0; }
+/* Tab nav */
+.tab-nav { display:flex; border-bottom:2px solid var(--border); margin-bottom:1.75rem; flex-wrap:wrap; }
+.tab-btn { display:flex; align-items:center; gap:.4rem; padding:.7rem 1.1rem; border:none; background:transparent; color:#9a8a72; font-family:'Source Serif 4',serif; font-size:.82rem; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-2px; transition:color .2s, border-color .2s; white-space:nowrap; }
+.tab-btn i { font-size:.78rem; }
+.tab-btn:hover { color:var(--gold); }
+.tab-btn.active { color:var(--gold); border-bottom-color:var(--gold); font-weight:600; }
+.tab-panel { animation:fadeUp .22s ease; }
+@keyframes fadeUp { from { opacity:0; transform:translateY(5px); } to { opacity:1; } }
 
-/* Detail tabs */
-.detail-tabs { display: flex; border-bottom: 2px solid var(--border); margin-bottom: 1.75rem; gap: 0; flex-wrap: wrap; }
-.detail-tab {
-  display: flex; align-items: center; gap: .4rem;
-  padding: .7rem 1.1rem;
-  border: none; background: transparent; color: #9a8a72;
-  font-family: 'Source Serif 4', serif; font-size: .82rem;
-  cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px;
-  transition: color .2s, border-color .2s;
-}
-.detail-tab i { font-size: .8rem; }
-.detail-tab:hover  { color: var(--gold); }
-.detail-tab.active { color: var(--gold); border-bottom-color: var(--gold); font-weight: 600; }
-
-.tab-panel { animation: fadeIn .25s ease; }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-
-/* Video player */
-.video-player {
-  background: #0a0704; border-radius: 3px; overflow: hidden;
-  box-shadow: var(--shadow-lg); margin-bottom: 1.5rem; position: relative;
-}
-.vp-poster { width: 100%; display: block; max-height: 420px; object-fit: cover; filter: brightness(.6); }
-.vp-overlay {
-  position: absolute; inset: 0;
-  background: rgba(26,18,8,.3);
-  transition: opacity .3s;
-}
-.vp-overlay.hidden { opacity: 0; pointer-events: none; }
-.vp-controls {
-  position: absolute; bottom: 0; left: 0; right: 0;
-  background: linear-gradient(to top, rgba(10,7,4,.95) 0%, transparent 100%);
-  padding: 1.5rem 1rem .75rem; opacity: 1; transition: opacity .3s;
-}
-.vp-progress-wrap { cursor: pointer; margin-bottom: .65rem; }
-.vp-progress-track { position: relative; height: 4px; background: rgba(255,255,255,.2); border-radius: 2px; }
-.vp-progress-fill  { height: 100%; background: var(--gold); border-radius: 2px; transition: width .3s; }
-.vp-progress-thumb {
-  position: absolute; top: 50%; transform: translate(-50%,-50%);
-  width: 12px; height: 12px; border-radius: 50%;
-  background: var(--gold-l); box-shadow: 0 0 4px rgba(196,146,42,.6);
-}
-.vp-time-row { display: flex; justify-content: space-between; font-size: .65rem; color: rgba(255,255,255,.4); margin-top: .3rem; }
-.vp-btn-row  { display: flex; align-items: center; gap: .35rem; }
-.vp-btn {
-  background: none; border: none; color: rgba(255,255,255,.7);
-  font-size: .9rem; cursor: pointer; padding: .25rem .35rem;
-  display: flex; align-items: center; gap: .15rem;
-  transition: color .2s;
-}
-.vp-btn span { font-size: .65rem; }
-.vp-btn:hover { color: #fff; }
-.vp-btn.main-btn {
-  width: 40px; height: 40px; border-radius: 50%;
-  background: var(--gold); color: #fff;
-  justify-content: center; font-size: 1rem;
-  transition: background .2s, transform .2s;
-}
-.vp-btn.main-btn:hover { background: var(--gold-l); transform: scale(1.05); }
-.vp-spacer { flex: 1; }
-.vp-speed {
-  background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2);
-  color: rgba(255,255,255,.7); font-size: .72rem; padding: .2rem .4rem;
-  border-radius: 2px; cursor: pointer; outline: none;
-  font-family: 'Source Serif 4', serif;
-}
-
-/* PDF preview */
-.pdf-preview { background: #fff; border: 1px solid var(--border); border-radius: 3px; overflow: hidden; margin-bottom: 1.5rem; }
-.pdf-header {
-  display: flex; align-items: center; gap: .6rem;
-  padding: .75rem 1rem; border-bottom: 1px solid var(--border);
-  background: #f8f3ec; font-size: .82rem; color: var(--ink);
-}
-.pdf-header i { color: #2a3a5c; font-size: 1.1rem; }
-.pdf-dl-btn {
-  margin-left: auto; display: inline-flex; align-items: center; gap: .35rem;
-  font-size: .75rem; color: var(--gold); text-decoration: none;
-  border: 1px solid rgba(196,146,42,.3); padding: .22rem .65rem; border-radius: 1px;
-  transition: background .2s;
-}
-.pdf-dl-btn:hover { background: rgba(196,146,42,.08); }
-.pdf-pages-demo { display: flex; gap: 1rem; padding: 1.25rem; overflow-x: auto; }
-.pdf-page-demo {
-  flex-shrink: 0; width: 160px; background: var(--parchment);
-  border: 1px solid var(--border); border-radius: 1px; padding: 1rem;
-  position: relative;
-}
-.ppd-header { margin-bottom: .75rem; display: flex; flex-direction: column; gap: .3rem; }
-.ppd-body   { display: flex; flex-direction: column; gap: .35rem; }
-.ppd-line   { height: 8px; background: rgba(26,18,8,.1); border-radius: 1px; }
-.w-40  { width: 40%; }
-.w-60  { width: 60%; }
-.w-70  { width: 70%; }
-.w-75  { width: 75%; }
-.w-80  { width: 80%; }
-.w-85  { width: 85%; }
-.w-90  { width: 90%; }
-.w-95  { width: 95%; }
-.ppd-page-num {
-  position: absolute; bottom: .4rem; right: .6rem;
-  font-size: .62rem; color: rgba(26,18,8,.3); font-style: italic;
-}
-.open-pdf-btn {
-  display: flex; align-items: center; gap: .5rem; justify-content: center;
-  width: 100%; padding: .75rem;
-  border: none; border-top: 1px solid var(--border); background: #fdf8f0;
-  color: var(--gold); font-family: 'Source Serif 4', serif; font-size: .82rem; font-weight: 600;
-  cursor: pointer; transition: background .2s;
-}
-.open-pdf-btn:hover { background: #f5ede0; }
-
-/* Text content */
-.text-content { max-width: 720px; }
-.cb-heading    { font-family: 'Playfair Display', serif; font-size: 1.5rem; font-weight: 900; color: var(--ink); margin: 1.75rem 0 .75rem; }
-.cb-subheading { font-family: 'Playfair Display', serif; font-size: 1.15rem; font-weight: 700; color: var(--rust); margin: 1.5rem 0 .6rem; }
-.cb-paragraph  { font-size: .9rem; color: #3a2a15; line-height: 1.85; margin: 0 0 1rem; }
-.cb-quote {
-  border-left: 3px solid var(--gold); margin: 1.5rem 0;
-  padding: .85rem 1.25rem; background: rgba(196,146,42,.06);
-  border-radius: 0 2px 2px 0;
-}
-.cb-quote p    { font-family: 'Playfair Display', serif; font-size: 1.05rem; font-style: italic; color: var(--ink); margin: 0 0 .4rem; }
-.cb-quote cite { font-size: .75rem; color: var(--gold); }
-.cb-list ul { list-style: none; margin: 0 0 1rem; padding: 0; display: flex; flex-direction: column; gap: .4rem; }
-.cb-list li { display: flex; align-items: flex-start; gap: .5rem; font-size: .875rem; color: #3a2a15; }
-.cb-list li::before { content: '◆'; color: var(--gold); font-size: .5rem; margin-top: .35rem; flex-shrink: 0; }
-.cb-highlight {
-  display: flex; gap: .75rem; align-items: flex-start;
-  background: linear-gradient(135deg, rgba(196,146,42,.08), rgba(196,146,42,.04));
-  border: 1px solid rgba(196,146,42,.25); border-radius: 2px;
-  padding: 1rem 1.15rem; margin: 1.25rem 0;
-}
-.cb-highlight i { color: var(--gold); font-size: 1.1rem; flex-shrink: 0; margin-top: .1rem; }
-.cb-highlight p { font-size: .875rem; color: var(--ink); line-height: 1.65; margin: 0; }
+/* Chapters */
+.chapters-panel { background:#fff; border:1px solid var(--border); border-radius:3px; overflow:hidden; margin-top:1.5rem; }
+.panel-head { display:flex; align-items:center; gap:.45rem; font-size:.68rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:#9a8a72; padding:.75rem 1.1rem; border-bottom:1px solid var(--border); background:#fdf9f4; }
+.panel-head i { color:var(--gold); font-size:.72rem; }
+.panel-cnt { margin-left:auto; font-size:.62rem; background:rgba(196,146,42,.1); color:var(--gold); padding:.08rem .38rem; border-radius:10px; }
+.chapter-row { display:flex; align-items:center; gap:.75rem; padding:.65rem 1.1rem; border-bottom:1px solid rgba(217,205,184,.4); cursor:pointer; border-left:2px solid transparent; transition:all .15s; }
+.chapter-row:last-child { border-bottom:none; }
+.chapter-row:hover { background:#fdf8f0; }
+.chapter-row.active { border-left-color:var(--gold); background:rgba(196,146,42,.06); }
+.ch-num  { width:28px; height:28px; border-radius:50%; background:rgba(196,146,42,.12); color:var(--gold); display:flex; align-items:center; justify-content:center; font-size:.7rem; font-weight:700; flex-shrink:0; }
+.chapter-row.active .ch-num { background:var(--gold); color:#fff; }
+.ch-body { flex:1; }
+.ch-title { display:block; font-size:.82rem; font-weight:600; color:var(--ink); }
+.ch-sub   { display:block; font-size:.68rem; color:#9a8a72; margin-top:.1rem; }
+.ch-time  { font-size:.68rem; color:#b0a090; white-space:nowrap; }
 
 /* Materials */
-.materials-list { display: flex; flex-direction: column; gap: .6rem; }
-.material-item {
-  display: flex; align-items: center; gap: 1rem;
-  background: #fff; border: 1px solid var(--border); border-radius: 2px;
-  padding: .85rem 1rem; transition: box-shadow .2s;
-}
-.material-item:hover { box-shadow: var(--shadow); }
-.mat-icon {
-  width: 38px; height: 38px; border-radius: 2px;
-  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-  font-size: 1rem;
-}
-.mat-icon.pdf  { background: rgba(42,58,92,.1);  color: #2a3a5c; }
-.mat-icon.docx { background: rgba(42,92,58,.1);  color: #2a5c3a; }
-.mat-icon.link { background: rgba(196,146,42,.1); color: var(--gold); }
-.mat-body  { flex: 1; }
-.mat-title { display: block; font-size: .85rem; font-weight: 600; color: var(--ink); }
-.mat-meta  { display: block; font-size: .72rem; color: #9a8a72; margin-top: .15rem; }
-.mat-dl {
-  width: 34px; height: 34px; border-radius: 2px;
-  border: 1.5px solid var(--border); background: transparent; color: #7a6a52;
-  display: flex; align-items: center; justify-content: center;
-  font-size: .8rem; text-decoration: none; transition: border-color .2s, color .2s;
-}
-.mat-dl:hover { border-color: var(--gold); color: var(--gold); }
+.materials-list { display:flex; flex-direction:column; gap:.55rem; }
+.mat-row  { display:flex; align-items:center; gap:.85rem; background:#fff; border:1px solid var(--border); border-radius:2px; padding:.85rem 1rem; transition:box-shadow .2s; }
+.mat-row:hover { box-shadow:var(--shd); }
+.mat-ico  { width:40px; height:40px; border-radius:2px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:1rem; }
+.mat-ico.pdf  { background:rgba(42,58,92,.1);  color:var(--navy); }
+.mat-ico.docx { background:rgba(58,92,58,.1);  color:var(--sage); }
+.mat-ico.link { background:rgba(196,146,42,.1); color:var(--gold); }
+.mat-ico.mp4  { background:rgba(139,58,30,.1); color:var(--rust); }
+.mat-info { flex:1; }
+.mat-name { display:block; font-size:.85rem; font-weight:600; color:var(--ink); }
+.mat-sub  { display:block; font-size:.7rem; color:#9a8a72; margin-top:.1rem; }
+.mat-path { display:block; font-family:monospace; font-size:.62rem; color:#b0a090; margin-top:.15rem; }
+.mat-dl   { display:inline-flex; align-items:center; gap:.38rem; border:1.5px solid var(--border); border-radius:2px; background:transparent; color:#7a6a52; text-decoration:none; font-family:'Source Serif 4',serif; font-size:.75rem; padding:.38rem .75rem; transition:all .2s; flex-shrink:0; }
+.mat-dl:hover { border-color:var(--gold); color:var(--gold); }
+
+/* Empty */
+.empty-state { display:flex; flex-direction:column; align-items:center; gap:.6rem; padding:3.5rem 2rem; text-align:center; color:#9a8a72; font-style:italic; }
+.empty-state i { font-size:2rem; color:var(--border); }
+.empty-state p { margin:0; }
+.empty-hint { font-size:.72rem; color:#b0a090; font-style:normal; font-family:monospace; }
 
 /* Notes */
-.notes-area { display: flex; flex-direction: column; gap: .75rem; }
-.notes-textarea {
-  width: 100%; border: 1.5px solid var(--border); border-radius: 2px;
-  padding: 1rem; font-family: 'Source Serif 4', serif; font-size: .9rem; color: var(--ink);
-  background: #fff; resize: vertical; outline: none; line-height: 1.7;
-  transition: border-color .22s;
-}
-.notes-textarea:focus { border-color: var(--gold); }
-.notes-textarea::placeholder { color: #b0a090; font-style: italic; }
-.notes-footer { display: flex; justify-content: space-between; align-items: center; }
-.notes-hint   { font-size: .72rem; color: #b0a090; font-style: italic; }
-.notes-save {
-  display: inline-flex; align-items: center; gap: .4rem;
-  background: var(--gold); color: #fff; border: none;
-  padding: .48rem 1.1rem; border-radius: 2px;
-  font-family: 'Source Serif 4', serif; font-size: .8rem; font-weight: 600;
-  cursor: pointer; transition: background .2s;
-}
-.notes-save:hover { background: var(--gold-l); }
+.notes-ta { width:100%; border:1.5px solid var(--border); border-radius:2px; padding:1rem; font-family:'Source Serif 4',serif; font-size:.9rem; color:var(--ink); background:#fff; resize:vertical; outline:none; line-height:1.75; transition:border-color .22s; display:block; }
+.notes-ta:focus { border-color:var(--gold); }
+.notes-ta::placeholder { color:#b0a090; font-style:italic; }
+.notes-bar  { display:flex; justify-content:space-between; align-items:center; margin-top:.75rem; }
+.notes-hint { font-size:.72rem; color:#b0a090; font-style:italic; display:flex; align-items:center; gap:.3rem; }
+.notes-hint i { color:var(--gold); }
 
 /* Comments */
-.comments-list { display: flex; flex-direction: column; gap: 1.25rem; margin-bottom: 2rem; }
-.comment-item  { display: flex; gap: .9rem; }
-.ci-avatar {
-  width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
-  background: linear-gradient(135deg, var(--gold), var(--rust));
-  color: #fff; display: flex; align-items: center; justify-content: center;
-  font-weight: 700; font-size: .9rem;
-}
-.ci-header { display: flex; align-items: baseline; gap: .65rem; margin-bottom: .3rem; }
-.ci-name   { font-weight: 700; font-size: .85rem; color: var(--ink); }
-.ci-date   { font-size: .7rem; color: #b0a090; }
-.ci-stars  { display: flex; gap: .1rem; margin-bottom: .4rem; }
-.star-sm   { font-size: .75rem; color: #d9cdb8; }
-.star-sm.on{ color: var(--gold); }
-.ci-text   { font-size: .82rem; color: #5a4a35; line-height: 1.65; margin: 0; }
+.comments-list { display:flex; flex-direction:column; gap:1.25rem; margin-bottom:2rem; }
+.comment-card  { display:flex; gap:.85rem; }
+.cc-ava  { width:38px; height:38px; border-radius:50%; flex-shrink:0; background:linear-gradient(135deg,var(--gold),var(--rust)); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:.9rem; }
+.cc-body { flex:1; }
+.cc-top  { display:flex; align-items:baseline; gap:.6rem; margin-bottom:.3rem; }
+.cc-name { font-weight:700; font-size:.85rem; color:var(--ink); }
+.cc-date { font-size:.68rem; color:#b0a090; }
+.cc-stars { display:flex; align-items:center; gap:.1rem; margin-bottom:.35rem; }
+.cstar    { font-size:.75rem; color:#d9cdb8; }
+.cstar.on { color:var(--gold); }
+.cstar-num { font-size:.68rem; color:#9a8a72; margin-left:.2rem; }
+.cc-text   { font-size:.82rem; color:#5a4a35; line-height:1.65; margin:0; }
+.comment-form { background:#fff; border:1px solid var(--border); border-radius:3px; padding:1.25rem; border-top:3px solid var(--gold); margin-top:1.5rem; }
+.cf-head  { font-family:'Playfair Display',serif; font-size:1rem; font-weight:700; color:var(--ink); margin:0 0 .85rem; }
+.cf-stars { display:flex; gap:.3rem; margin-bottom:.85rem; }
+.cf-star  { font-size:1.4rem; color:#d9cdb8; cursor:pointer; transition:color .15s; }
+.cf-star.on { color:var(--gold); }
+.cf-ta    { width:100%; border:1.5px solid var(--border); border-radius:2px; padding:.75rem; font-family:'Source Serif 4',serif; font-size:.875rem; color:var(--ink); resize:vertical; outline:none; background:#fdf9f4; transition:border-color .22s; display:block; margin-bottom:.75rem; }
+.cf-ta:focus { border-color:var(--gold); }
 
-.comment-form {
-  background: #fff; border: 1px solid var(--border); border-radius: 3px;
-  padding: 1.25rem; border-top: 3px solid var(--gold);
-}
-.cf-title  { font-family: 'Playfair Display', serif; font-size: 1rem; font-weight: 700; color: var(--ink); margin: 0 0 .85rem; }
-.cf-stars  { display: flex; gap: .3rem; margin-bottom: .85rem; }
-.cf-star   { font-size: 1.4rem; color: #d9cdb8; cursor: pointer; transition: color .15s; }
-.cf-star.on{ color: var(--gold); }
-.cf-input  {
-  width: 100%; border: 1.5px solid var(--border); border-radius: 2px;
-  padding: .75rem; font-family: 'Source Serif 4', serif; font-size: .875rem;
-  color: var(--ink); resize: vertical; outline: none; background: #fdf9f4;
-  transition: border-color .22s;
-}
-.cf-input:focus { border-color: var(--gold); }
-.cf-submit {
-  display: inline-flex; align-items: center; gap: .45rem; margin-top: .75rem;
-  background: var(--gold); color: #fff; border: none;
-  padding: .55rem 1.35rem; border-radius: 2px;
-  font-family: 'Source Serif 4', serif; font-size: .85rem; font-weight: 700;
-  cursor: pointer; transition: background .2s;
-}
-.cf-submit:hover { background: var(--gold-l); }
+/* ── Sidebar ── */
+.sidebar-col { display:flex; flex-direction:column; gap:1.25rem; }
+.sb-card     { background:#fff; border:1px solid var(--border); border-radius:3px; overflow:hidden; }
+.inst-row    { padding:1.1rem; display:flex; gap:.85rem; align-items:center; }
+.inst-ava    { width:50px; height:50px; border-radius:50%; flex-shrink:0; background:linear-gradient(135deg,var(--gold),var(--rust)); color:#fff; display:flex; align-items:center; justify-content:center; font-family:'Playfair Display',serif; font-size:1.3rem; font-weight:700; }
+.inst-name   { font-family:'Playfair Display',serif; font-size:.95rem; font-weight:700; color:var(--ink); margin:0 0 .15rem; }
+.inst-role   { font-size:.72rem; color:var(--rust); font-style:italic; margin:0; }
+.sb-head     { display:flex; align-items:center; gap:.45rem; font-size:.68rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:#9a8a72; padding:.7rem 1rem; border-bottom:1px solid var(--border); background:#faf6ef; }
+.sb-head i   { font-size:.7rem; color:var(--gold); }
+.info-list   { list-style:none; margin:0; padding:.35rem 0; }
+.info-list li { display:flex; align-items:center; justify-content:space-between; padding:.42rem 1rem; border-bottom:1px solid rgba(217,205,184,.4); }
+.info-list li:last-child { border-bottom:none; }
+.il-label    { font-size:.72rem; color:#9a8a72; display:flex; align-items:center; gap:.35rem; }
+.il-label i  { font-size:.68rem; color:var(--gold); }
+.il-val      { font-size:.75rem; font-weight:600; color:var(--ink); text-align:right; }
 
-/* ══ SIDEBAR ══ */
-.detail-sidebar { display: flex; flex-direction: column; gap: 1.25rem; }
+/* Type card */
+.type-card { display:flex !important; align-items:center; gap:.75rem; padding:1rem !important; }
+.tc-icon   { width:42px; height:42px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.1rem; flex-shrink:0; }
+.type-card.video .tc-icon { background:rgba(139,58,30,.1); color:var(--rust); }
+.type-card.text  .tc-icon { background:rgba(58,92,58,.1);  color:var(--sage); }
+.type-card.pdf   .tc-icon { background:rgba(42,58,92,.1);  color:var(--navy); }
+.tc-title  { display:block; font-size:.82rem; font-weight:700; color:var(--ink); margin-bottom:.2rem; }
+.tc-desc   { display:block; font-size:.7rem; color:#9a8a72; line-height:1.5; }
 
-.instructor-card {
-  background: #fff; border: 1px solid var(--border); border-radius: 3px;
-  padding: 1.1rem; display: flex; gap: .85rem; align-items: flex-start;
-}
-.ic-avatar {
-  width: 48px; height: 48px; border-radius: 50%; flex-shrink: 0;
-  background: linear-gradient(135deg, var(--gold), var(--rust));
-  color: #fff; display: flex; align-items: center; justify-content: center;
-  font-family: 'Playfair Display', serif; font-size: 1.25rem; font-weight: 700;
-}
-.ic-name  { font-family: 'Playfair Display', serif; font-size: .95rem; font-weight: 700; color: var(--ink); margin: 0 0 .15rem; }
-.ic-role  { font-size: .72rem; color: var(--rust); font-style: italic; margin: 0 0 .5rem; }
-.ic-stats { display: flex; gap: .75rem; font-size: .72rem; color: #9a8a72; }
-.ic-stats i { color: var(--gold); margin-right: .2rem; }
-
-.info-card, .related-card {
-  background: #fff; border: 1px solid var(--border); border-radius: 3px; overflow: hidden;
-}
-.ic-head {
-  font-size: .68rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
-  color: #9a8a72; padding: .75rem 1rem; margin: 0; border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; gap: .4rem; background: #faf6ef;
-}
-.ic-head i { font-size: .7rem; color: var(--gold); }
-.info-list { list-style: none; margin: 0; padding: .35rem 0; }
-.info-list li {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: .42rem 1rem; border-bottom: 1px solid rgba(217,205,184,.5);
-}
-.info-list li:last-child { border-bottom: none; }
-.il-label { font-size: .75rem; color: #9a8a72; display: flex; align-items: center; gap: .35rem; }
-.il-label i { font-size: .7rem; color: var(--gold); }
-.il-val   { font-size: .78rem; font-weight: 600; color: var(--ink); }
-
-.related-list { padding: .5rem 0; }
-.related-item {
-  display: flex; gap: .75rem; padding: .65rem 1rem; cursor: pointer;
-  transition: background .15s;
-}
-.related-item:hover { background: #fdf8f0; }
-.ri-thumb-wrap { flex-shrink: 0; position: relative; width: 64px; height: 48px; border-radius: 1px; overflow: hidden; }
-.ri-thumb { width: 100%; height: 100%; object-fit: cover; }
-.ri-type {
-  position: absolute; top: 3px; left: 3px; width: 18px; height: 18px;
-  border-radius: 50%; display: flex; align-items: center; justify-content: center;
-  font-size: .55rem; color: #fff;
-}
-.ri-type.video { background: rgba(139,58,30,.88); }
-.ri-type.text  { background: rgba(74,94,76,.88);  }
-.ri-type.pdf   { background: rgba(42,58,92,.88);  }
-.ri-body { flex: 1; min-width: 0; }
-.ri-title { font-size: .78rem; font-weight: 600; color: var(--ink); margin: 0 0 .2rem; line-height: 1.3; }
-.ri-meta  { font-size: .68rem; color: #9a8a72; }
-
-/* Responsive */
-@media (max-width: 640px) {
-  .hero-cta  { flex-wrap: wrap; }
-  .detail-tabs { overflow-x: auto; }
-  .detail-tab  { white-space: nowrap; }
-}
+/* Excel badge */
+.sb-dark { background:var(--dark) !important; border-color:rgba(196,146,42,.2) !important; display:flex !important; align-items:flex-start; gap:.75rem; padding:1rem !important; }
+.sb-db-icon  { font-size:1.1rem; color:var(--gold); flex-shrink:0; margin-top:.1rem; }
+.sb-db-title { display:block; font-size:.62rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:rgba(255,255,255,.32); }
+.sb-db-file  { display:block; font-size:.7rem; color:var(--gold-l); font-family:monospace; margin:.2rem 0 .3rem; }
+.sb-db-desc  { display:block; font-size:.62rem; color:rgba(255,255,255,.25); font-style:italic; }
 </style>

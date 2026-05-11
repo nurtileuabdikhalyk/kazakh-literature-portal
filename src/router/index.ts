@@ -15,10 +15,16 @@ const routes = [
     meta: { hideHeader: true, hideFooter: true },
   },
   {
-    path: '/lessons/:id',
+    path: '/lessons/:type/:id',
     name: 'lesson-detail',
     component: () =>
         import( "@/pages/LessonDetail.vue"),
+  },
+  {
+    path: '/lessons',
+    name: 'lessons-list',
+    component: () =>
+        import( "@/pages/LessonsList.vue"),
   },
 ]
 
