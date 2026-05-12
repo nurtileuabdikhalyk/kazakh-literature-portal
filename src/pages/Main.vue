@@ -12,7 +12,7 @@ import CreativeTasks from "@/components/CreativeTasks.vue";
   <LessonsSection/>
   <AudiovisualSection />
   <InteractiveTasks />
-  <CreativeTasks />
+<!--  <CreativeTasks />-->
 <!--  <BooksSection/>-->
 </template>
 
