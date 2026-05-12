@@ -14,7 +14,7 @@ const PREVIEW_LIMIT = 12   // Басты бетте максимум 12 саба
 const TYPE_TABS = [
   { key: 'all',   label: 'Барлығы',     icon: 'pi-th-large'    },
   { key: 'video', label: 'Видео сабақ', icon: 'pi-play-circle' },
-  { key: 'text',  label: 'Конспект',    icon: 'pi-file-edit'   },
+  // { key: 'text',  label: 'Конспект',    icon: 'pi-file-edit'   },
   { key: 'pdf',   label: 'PDF',         icon: 'pi-file-pdf'    },
 ]
 
@@ -44,7 +44,7 @@ async function loadFromExcel() {
     const data = []
     const sheetMap = {
       '🎬 Видео сабақтар': 'video',
-      '📄 Конспекттер':    'text',
+      // '📄 Конспекттер':    'text',
       '📑 PDF материалдар':'pdf',
     }
     Object.entries(sheetMap).forEach(([sheet, type]) => {
