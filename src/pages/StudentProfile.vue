@@ -36,9 +36,9 @@
     <div class="sp-body">
       <div class="sp-tabs">
         <button
-          v-for="tab in tabs" :key="tab.key"
-          class="sp-tab" :class="{ active: activeTab === tab.key }"
-          @click="activeTab = tab.key"
+            v-for="tab in tabs" :key="tab.key"
+            class="sp-tab" :class="{ active: activeTab === tab.key }"
+            @click="activeTab = tab.key"
         >
           <i :class="'pi ' + tab.icon"/>
           {{ tab.label }}
@@ -62,11 +62,11 @@
               <svg viewBox="0 0 100 100" class="ro-ring">
                 <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(196,146,42,.15)" stroke-width="8"/>
                 <circle cx="50" cy="50" r="42" fill="none"
-                  :stroke="avgColor" stroke-width="8" stroke-linecap="round"
-                  stroke-dasharray="263.9"
-                  :stroke-dashoffset="263.9 - (263.9 * avgScore / 100)"
-                  transform="rotate(-90 50 50)"
-                  style="transition: stroke-dashoffset 1s ease"
+                        :stroke="avgColor" stroke-width="8" stroke-linecap="round"
+                        stroke-dasharray="263.9"
+                        :stroke-dashoffset="263.9 - (263.9 * avgScore / 100)"
+                        transform="rotate(-90 50 50)"
+                        style="transition: stroke-dashoffset 1s ease"
                 />
               </svg>
               <div class="ro-ring-center">
@@ -95,10 +95,10 @@
                   <svg viewBox="0 0 48 48">
                     <circle cx="24" cy="24" r="18" fill="none" stroke="rgba(196,146,42,.15)" stroke-width="4"/>
                     <circle cx="24" cy="24" r="18" fill="none"
-                      :stroke="pctColor(r.pct)" stroke-width="4" stroke-linecap="round"
-                      :stroke-dasharray="113.1"
-                      :stroke-dashoffset="113.1 - (113.1 * r.pct / 100)"
-                      transform="rotate(-90 24 24)"
+                            :stroke="pctColor(r.pct)" stroke-width="4" stroke-linecap="round"
+                            :stroke-dasharray="113.1"
+                            :stroke-dashoffset="113.1 - (113.1 * r.pct / 100)"
+                            transform="rotate(-90 24 24)"
                     />
                   </svg>
                   <span class="rc-pct-num">{{ r.pct }}%</span>
@@ -123,57 +123,7 @@
 
         <!-- ──── TAB: МЕНІҢ ПІКІРЛЕРІМ ───────────── -->
         <div v-else-if="activeTab === 'comments'">
-
-          <!-- Add comment form -->
-          <div class="add-comment-card">
-            <h3 class="acc-title">Пікір жазу</h3>
-            <div class="acc-lesson-sel">
-              <label>Сабақ таңдаңыз:</label>
-              <select v-model="newComment.lessonName" class="acc-select">
-                <option value="">— Таңдаңыз —</option>
-                <option v-for="l in lessonOptions" :key="l" :value="l">{{ l }}</option>
-              </select>
-            </div>
-            <div class="acc-stars-row">
-              <label>Бағалау:</label>
-              <div class="acc-stars">
-                <span v-for="i in 5" :key="i" class="acc-star"
-                  :class="{ on: i <= newComment.rating }" @click="newComment.rating = i">★</span>
-              </div>
-            </div>
-            <textarea v-model="newComment.text" class="acc-ta" placeholder="Пікіріңізді жазыңыз…" rows="3"/>
-            <button class="btn-gold" @click="submitComment" :disabled="!newComment.lessonName || !newComment.text.trim()">
-              <i class="pi pi-send"/> Жіберу
-            </button>
-          </div>
-
-          <!-- My comments list -->
-          <div class="my-comments">
-            <div v-for="c in myComments" :key="c.lessonName+c.date" class="my-comment-card">
-              <div class="mcc-header">
-                <span class="mcc-lesson">{{ c.lessonName }}</span>
-                <span class="mcc-date">{{ c.date }}</span>
-                <div class="mcc-stars">
-                  <span v-for="i in 5" :key="i" class="mcc-star" :class="{ on: i <= c.rating }">★</span>
-                </div>
-              </div>
-              <p class="mcc-text">{{ c.text }}</p>
-              <div v-if="c.reply" class="mcc-reply">
-                <div class="mcc-reply-label">
-                  <i class="pi pi-reply"/> Мұғалім жауабы:
-                </div>
-                <p class="mcc-reply-text">{{ c.reply }}</p>
-                <span class="mcc-reply-date">{{ c.replyDate }}</span>
-              </div>
-              <div v-else class="mcc-pending">
-                <i class="pi pi-clock"/> Мұғалім жауабы күтілуде…
-              </div>
-            </div>
-
-            <div v-if="!myComments.length" class="sp-empty">
-              <i class="pi pi-comments"/><p>Пікір жоқ</p>
-            </div>
-          </div>
+          <CommentsSection/>
         </div>
 
         <!-- ──── TAB: ПРОФИЛЬ ─────────────────────── -->
@@ -201,7 +151,11 @@
                 <span class="pic-val">Оқушы</span>
               </div>
             </div>
-
+            <p class="pic-note">
+              <i class="pi pi-info-circle"/>
+              Мәліметтерді өзгерту үшін мұғалімге хабарласыңыз.
+              Деректер <strong>Auth_MB.xlsx</strong> файлында сақталады.
+            </p>
           </div>
         </div>
 
@@ -213,17 +167,19 @@
 <script setup>
 import { ref, computed, onMounted, reactive } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuth }   from '@/composables/useAuth'
+import { useAuth }          from '@/composables/useAuth'
+import { useCommentsStore } from '@/composables/useCommentsStore'
+import CommentsSection from '@/components/CommentsSection.vue'
+import {useResultsStore} from "@/composables/useResultsStore.js";
 
 const router = useRouter()
-const { currentUser, logout, loadResults, loadComments } = useAuth()
+const { currentUser, logout, loadResults } = useAuth()
+const { stats: commentsStats } = useCommentsStore()
 
-const loading    = ref(true)
-const activeTab  = ref('results')
-const myResults  = ref([])
-const myComments = ref([])
-
-const newComment = reactive({ lessonName: '', rating: 5, text: '' })
+const loading   = ref(true)
+const activeTab = ref('results')
+const { results, getByStudent } = useResultsStore()
+const myResults = getByStudent(currentUser.value?.id)
 
 const tabs = [
   { key: 'results',  label: 'Нәтижелерім', icon: 'pi-chart-bar'  },
@@ -231,23 +187,9 @@ const tabs = [
   { key: 'profile',  label: 'Профиль',     icon: 'pi-user'        },
 ]
 
-// Fixed lesson options (in real app — load from Sabaqtar_MB.xlsx)
-const lessonOptions = [
-  'Абай өмірі мен шығармашылығы',
-  'Мұқағали лирикасы — конспект',
-  '«Абай жолы» эпопеясы',
-  'Қазақ эпостары',
-  'Шығарма талдау — видео',
-]
-
 onMounted(async () => {
   try {
-    const [res, com] = await Promise.all([
-      loadResults(currentUser.value?.id),
-      loadComments(),
-    ])
-    myResults.value  = res
-    myComments.value = com.filter(c => c.studentId === currentUser.value?.id)
+    myResults.value = await loadResults(currentUser.value?.id)
   } catch(e) { console.error(e) }
   finally { loading.value = false }
 })
@@ -260,10 +202,10 @@ const avgScore = computed(() => {
 const avgColor = computed(() => avgScore.value >= 80 ? '#3a5c3a' : avgScore.value >= 50 ? '#c4922a' : '#8b3a1e')
 
 const headerStats = computed(() => [
-  { val: myResults.value.length,  label: 'Тапсырма'  },
-  { val: avgScore.value + '%',    label: 'Орт. балл' },
-  { val: myComments.value.length, label: 'Пікір'     },
-  { val: currentUser.value?.class || '—', label: 'Сынып' },
+  { val: myResults.value.length,              label: 'Тапсырма'  },
+  { val: avgScore.value + '%',                label: 'Орт. балл' },
+  { val: commentsStats.value?.total || 0,     label: 'Пікір'     },
+  { val: currentUser.value?.class || '—',     label: 'Сынып'     },
 ])
 
 const gradeBreakdown = computed(() => {
@@ -285,21 +227,6 @@ const gradeBreakdown = computed(() => {
 function pctColor(p) { return p >= 80 ? '#3a5c3a' : p >= 50 ? '#c4922a' : '#8b3a1e' }
 function gradeClass(g) { return { 'Өте жақсы':'very-good', 'Жақсы':'good', 'Қанағат.':'mid', 'Қайталаңыз':'low' }[g] || '' }
 function doLogout() { logout(); router.push({ name:'login' }) }
-function submitComment() {
-  if (!newComment.lessonName || !newComment.text.trim()) return
-  myComments.value.unshift({
-    studentId: currentUser.value?.id,
-    studentName: currentUser.value?.name,
-    class: currentUser.value?.class,
-    lessonName: newComment.lessonName,
-    rating: newComment.rating,
-    text: newComment.text,
-    date: new Date().toLocaleDateString('kk-KZ'),
-    reply: '', replyDate: '',
-  })
-  newComment.text = ''; newComment.lessonName = ''; newComment.rating = 5
-  alert('Пікір жіберілді! Auth_MB.xlsx → 💬 Пікірлер бетіне қолмен жазыңыз.')
-}
 </script>
 
 <style scoped>

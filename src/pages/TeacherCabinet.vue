@@ -151,8 +151,12 @@
               <i class="pi pi-database"/> Барлығы: <strong>{{ storeStats.total }}</strong>
             </span>
             <span class="ssr-item video"><i class="pi pi-play-circle"/> {{ storeStats.video }} видео</span>
+            <span class="ssr-item text"><i class="pi pi-file-edit"/> {{ storeStats.text }} конспект</span>
             <span class="ssr-item pdf"><i class="pi pi-file-pdf"/> {{ storeStats.pdf }} PDF</span>
-
+            <span class="ssr-source">
+              <i class="pi pi-info-circle"/>
+              localStorage-тен · Excel-ден бір рет оқылды
+            </span>
           </div>
 
           <!-- Loading -->
@@ -222,7 +226,11 @@
                     <strong>«{{ deleteDialog.lesson?.title }}»</strong><br/>
                     сабағын өшіргіңіз келе ме?
                   </p>
-
+                  <p class="del-modal-hint">
+                    <i class="pi pi-info-circle"/>
+                    Деректер <strong>localStorage</strong>-тен өшіріледі.
+                    Excel файл өзгермейді.
+                  </p>
                   <div class="del-modal-actions">
                     <button class="del-btn-confirm" @click="doDelete">
                       <i class="pi pi-trash"/> Өшіру
@@ -290,6 +298,9 @@
             </span>
             <span class="ssr-item" style="background:rgba(42,58,92,.1);color:#2a3a5c">
               <i class="pi pi-arrows-h"/> {{ tasksStats.match }} Сәйк.
+            </span>
+            <span class="ssr-source">
+              <i class="pi pi-info-circle"/> localStorage-тен
             </span>
           </div>
 
@@ -382,6 +393,10 @@
                     <strong>«{{ deleteTaskDialog.task?.text || deleteTaskDialog.task?.title }}»</strong><br/>
                     тапсырмасын өшіргіңіз келе ме?
                   </p>
+                  <p class="del-modal-hint">
+                    <i class="pi pi-info-circle"/>
+                    Деректер <strong>localStorage</strong>-тен өшіріледі. Excel файл өзгермейді.
+                  </p>
                   <div class="del-modal-actions">
                     <button class="del-btn-confirm" @click="doTaskDelete">
                       <i class="pi pi-trash"/> Өшіру
@@ -460,55 +475,10 @@
         </div>
 
         <!-- ──────────────────────────────────────────── -->
-        <!-- SECTION: ПІКІРЛЕР                          -->
+        <!-- SECTION: ПІКІРЛЕР (CommentsSection)        -->
         <!-- ──────────────────────────────────────────── -->
-        <div v-else-if="activeSection === 'comments'" class="section-wrap">
-          <div class="section-card">
-            <div class="sc-head"><i class="pi pi-comments"/> Оқушы пікірлері</div>
-          </div>
-
-          <div class="comments-list">
-            <div v-for="c in comments" :key="c.studentId+c.date" class="comment-manage-card">
-              <div class="cmc-header">
-                <div class="cmc-ava">{{ c.studentName?.[0] || '?' }}</div>
-                <div class="cmc-meta">
-                  <span class="cmc-name">{{ c.studentName }}</span>
-                  <span class="cmc-class">{{ c.class }}</span>
-                  <span class="cmc-date">{{ c.date }}</span>
-                </div>
-                <div class="cmc-stars">
-                  <span v-for="i in 5" :key="i" class="cmc-star" :class="{ on: i <= c.rating }">★</span>
-                </div>
-                <span class="cmc-lesson">{{ c.lessonName }}</span>
-              </div>
-              <p class="cmc-text">{{ c.text }}</p>
-
-              <!-- Teacher reply -->
-              <div v-if="c.reply" class="cmc-reply">
-                <div class="reply-label"><i class="pi pi-reply"/> Мұғалім жауабы:</div>
-                <p class="reply-text">{{ c.reply }}</p>
-                <span class="reply-date">{{ c.replyDate }}</span>
-              </div>
-
-              <!-- Reply form -->
-              <div v-else class="cmc-reply-form">
-                <textarea
-                    v-model="replyTexts[c.studentId + c.date]"
-                    class="reply-ta"
-                    placeholder="Жауап жазыңыз…"
-                    rows="2"
-                />
-                <button class="btn-gold btn-sm" @click="sendReply(c)">
-                  <i class="pi pi-send"/> Жіберу
-                </button>
-              </div>
-            </div>
-
-            <div v-if="!comments.length" class="empty-state">
-              <i class="pi pi-comments"/>
-              <p>Пікір жоқ</p>
-            </div>
-          </div>
+        <div v-else-if="activeSection === 'comments'" class="section-wrap comments-embed">
+          <CommentsSection/>
         </div>
 
         <!-- ──────────────────────────────────────────── -->
@@ -550,9 +520,11 @@
 <script setup>
 import { ref, computed, onMounted, reactive } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuth }         from '@/composables/useAuth'
-import { useLessonsStore } from '@/composables/useLessonsStore'
-import { useTasksStore }   from '@/composables/useTasksStore'
+import { useAuth }          from '@/composables/useAuth'
+import { useLessonsStore }  from '@/composables/useLessonsStore'
+import { useTasksStore }    from '@/composables/useTasksStore'
+import { useCommentsStore } from '@/composables/useCommentsStore'
+import CommentsSection from '@/components/CommentsSection.vue'
 import Dialog from 'primevue/dialog'
 
 const router = useRouter()
@@ -572,18 +544,21 @@ const {
 // ── Constants ─────────────────────────────────────────
 const LESSON_TYPES = [
   { val:'video', label:'Видео',    icon:'pi-play-circle' },
+  { val:'text',  label:'Конспект', icon:'pi-file-edit'   },
   { val:'pdf',   label:'PDF',      icon:'pi-file-pdf'    },
 ]
 const taskTypeTabs = [
   { val:'all',        key:'all',   label:'Барлығы'        },
-  { val:'mcq',        key:'mcq',   label:'Тест'       },
+  { val:'mcq',        key:'mcq',   label:'MCQ тест'       },
   { val:'truefalse',  key:'tf',    label:'Дұрыс/Бұрыс'   },
   { val:'fillblank',  key:'fill',  label:'Бос орын'       },
   { val:'match',      key:'match', label:'Сәйкестендіру'  },
 ]
 
-// ── Tasks store ───────────────────────────────────────
-const tasksStore = useTasksStore()
+// ── Comments store ────────────────────────────────────
+const commentsStore  = useCommentsStore()
+const tasksStore  = useTasksStore()
+const { unreadCount: commentsUnread } = commentsStore
 const { tasks: storeTasks, loading: tasksLoading, stats: tasksStats } = tasksStore
 
 // ── State ─────────────────────────────────────────────
@@ -619,7 +594,7 @@ const navItems = computed(() => [
   { key:'lessons',   label:'Сабақтар',  icon:'pi-book',     badge: storeStats.value.total || null       },
   { key:'tests',     label:'Тесттер',   icon:'pi-list-check'                                            },
   { key:'results',   label:'Нәтижелер', icon:'pi-chart-bar', badge: results.value.length || null        },
-  { key:'comments',  label:'Пікірлер',  icon:'pi-comments',  badge: comments.value.filter(c=>!c.reply).length || null },
+  { key:'comments',  label:'Пікірлер',  icon:'pi-comments',  badge: commentsUnread.value || null },
   { key:'profile',   label:'Профиль',   icon:'pi-user'                                                  },
 ])
 const currentNavItem = computed(() => navItems.value.find(n => n.key === activeSection.value))

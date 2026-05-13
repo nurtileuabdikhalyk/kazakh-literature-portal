@@ -55,6 +55,13 @@ const routes = [
             import( "@/pages/AddTaskForm.vue"),
         meta: {requiresAuth: true, role: 'мұғалім'},
     },
+    {
+        path: '/interactive',
+        name: 'interactive',
+        component: () =>
+            import( "@/pages/InteractiveTasks.vue"),
+
+    },
 
 
     // ── Student only ────────────────────────────────────
