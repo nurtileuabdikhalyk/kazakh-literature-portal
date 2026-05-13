@@ -201,11 +201,7 @@
                 <span class="pic-val">Оқушы</span>
               </div>
             </div>
-            <p class="pic-note">
-              <i class="pi pi-info-circle"/>
-              Мәліметтерді өзгерту үшін мұғалімге хабарласыңыз.
-              Деректер <strong>Auth_MB.xlsx</strong> файлында сақталады.
-            </p>
+
           </div>
         </div>
 

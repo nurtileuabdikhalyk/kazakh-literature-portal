@@ -48,6 +48,14 @@ const routes = [
             import( "@/pages/TeacherCabinet.vue"),
         meta: {requiresAuth: true, role: 'мұғалім'},
     },
+    {
+        path: '/teacher/add-task',
+        name: 'add-task',
+        component: () =>
+            import( "@/pages/AddTaskForm.vue"),
+        meta: {requiresAuth: true, role: 'мұғалім'},
+    },
+
 
     // ── Student only ────────────────────────────────────
     {

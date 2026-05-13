@@ -12,7 +12,7 @@ export async function loadQuizzesFromExcel(file) {
     const result = []
 
     // ── 1. MCQ Тест ─────────────────────────────────────
-    const mcqSheet = wb.Sheets['📝 MCQ Тест']
+    const mcqSheet = wb.Sheets['📝 Тест']
     if (mcqSheet) {
         const rows = XLSX.utils.sheet_to_json(mcqSheet, { range: 4, defval: '' })
         const questions = rows
@@ -41,7 +41,7 @@ export async function loadQuizzesFromExcel(file) {
                 type: 'mcq',
                 diff: 'medium',
                 cat: 'excel',
-                title: 'Excel — MCQ Тест',
+                title: 'Excel — Тест',
                 desc: `Excel файлынан жүктелді · ${questions.length} сұрақ`,
                 time: Math.max(3, Math.ceil(questions.length * 1.5)),
                 lastScore: null,

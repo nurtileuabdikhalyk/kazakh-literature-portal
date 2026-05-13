@@ -16,10 +16,10 @@
 
       <nav class="sb-nav">
         <button
-          v-for="item in navItems" :key="item.key"
-          class="sb-nav-item" :class="{ active: activeSection === item.key }"
-          @click="activeSection = item.key"
-          :title="item.label"
+            v-for="item in navItems" :key="item.key"
+            class="sb-nav-item" :class="{ active: activeSection === item.key }"
+            @click="activeSection = item.key"
+            :title="item.label"
         >
           <i :class="'pi ' + item.icon"/>
           <span v-if="!sidebarCollapsed">{{ item.label }}</span>
@@ -84,22 +84,22 @@
             <div class="results-table-wrap">
               <table class="results-table">
                 <thead>
-                  <tr>
-                    <th>Оқушы</th><th>Сынып</th><th>Тапсырма</th>
-                    <th>Балл</th><th>Деңгей</th><th>Күн</th>
-                  </tr>
+                <tr>
+                  <th>Оқушы</th><th>Сынып</th><th>Тапсырма</th>
+                  <th>Балл</th><th>Деңгей</th><th>Күн</th>
+                </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="r in results.slice(0,8)" :key="r.studentId+r.taskName">
-                    <td class="rt-name">{{ r.studentName }}</td>
-                    <td>{{ r.class }}</td>
-                    <td class="rt-task">{{ r.taskName }}</td>
-                    <td>
-                      <span class="pct-badge" :class="pctClass(r.pct)">{{ r.pct }}%</span>
-                    </td>
-                    <td><span class="grade-chip" :class="gradeClass(r.grade)">{{ r.grade }}</span></td>
-                    <td class="rt-date">{{ r.date }}</td>
-                  </tr>
+                <tr v-for="r in results.slice(0,8)" :key="r.studentId+r.taskName">
+                  <td class="rt-name">{{ r.studentName }}</td>
+                  <td>{{ r.class }}</td>
+                  <td class="rt-task">{{ r.taskName }}</td>
+                  <td>
+                    <span class="pct-badge" :class="pctClass(r.pct)">{{ r.pct }}%</span>
+                  </td>
+                  <td><span class="grade-chip" :class="gradeClass(r.grade)">{{ r.grade }}</span></td>
+                  <td class="rt-date">{{ r.date }}</td>
+                </tr>
                 </tbody>
               </table>
             </div>
@@ -107,128 +107,294 @@
         </div>
 
         <!-- ──────────────────────────────────────────── -->
-        <!-- SECTION: САБАҚТАР                          -->
+        <!-- SECTION: САБАҚТАР (localStorage + store)  -->
         <!-- ──────────────────────────────────────────── -->
         <div v-else-if="activeSection === 'lessons'" class="section-wrap">
-          <div class="section-actions">
-            <button class="btn-gold" @click="$router.push({ name: 'add-lesson' })">
-              <i class="pi pi-plus"/> Сабақ қосу
-            </button>
+
+          <!-- Toolbar -->
+          <div class="lessons-toolbar">
+            <!-- Search -->
+            <div class="lt-search">
+              <i class="pi pi-search"/>
+              <input v-model="lessonsSearch" class="lt-input" placeholder="Іздеу…"/>
+              <button v-if="lessonsSearch" class="lt-clear" @click="lessonsSearch = ''">
+                <i class="pi pi-times"/>
+              </button>
+            </div>
+            <!-- Type filter -->
+            <div class="lt-types">
+              <button
+                  v-for="t in [{ val:'all', label:'Барлығы' }, ...LESSON_TYPES]"
+                  :key="t.val"
+                  class="lt-type-btn"
+                  :class="[t.val, { active: lessonsFilter === t.val }]"
+                  @click="lessonsFilter = t.val"
+              >{{ t.label }}</button>
+            </div>
+            <!-- Actions -->
+            <div class="lt-actions">
+              <button class="btn-gold" @click="$router.push({ name: 'add-lesson' })">
+                <i class="pi pi-plus"/> Сабақ қосу
+              </button>
+              <button class="btn-excel" @click="storeExportToExcel" title="Барлығын Excel-ге жүктеу">
+                <i class="pi pi-file-excel"/> Excel
+              </button>
+              <button class="btn-reload" @click="storeReload" :disabled="storeLoading" title="Excel-ден қайта жүктеу">
+                <i class="pi pi-refresh" :class="{ spinning: storeLoading }"/>
+              </button>
+            </div>
           </div>
 
-          <div class="lessons-grid">
-            <div v-for="lesson in teacherLessons" :key="lesson.title" class="lesson-manage-card">
-              <div class="lmc-top">
-                <span class="lmc-type" :class="lesson.type">
-                  <i :class="'pi ' + typeIcon(lesson.type)"/>
-                  {{ lesson.type }}
-                </span>
-                <span class="lmc-status" :class="lesson.status === 'жарияланды' ? 'pub' : 'hid'">
-                  {{ lesson.status }}
-                </span>
-              </div>
-              <h3 class="lmc-title">{{ lesson.title }}</h3>
-              <div class="lmc-meta">
-                <span><i class="pi pi-tag"/> {{ lesson.topic }}</span>
-                <span><i class="pi pi-chart-bar"/> {{ lesson.level }}</span>
-                <span><i class="pi pi-users"/> {{ lesson.classes }}</span>
-              </div>
-              <div class="lmc-actions">
-                <button class="lmc-btn edit"><i class="pi pi-pencil"/> Өзгерту</button>
-                <button class="lmc-btn delete"><i class="pi pi-trash"/></button>
-              </div>
-            </div>
+          <!-- Stats chips -->
+          <div class="store-stats-row">
+            <span class="ssr-item total">
+              <i class="pi pi-database"/> Барлығы: <strong>{{ storeStats.total }}</strong>
+            </span>
+            <span class="ssr-item video"><i class="pi pi-play-circle"/> {{ storeStats.video }} видео</span>
+            <span class="ssr-item pdf"><i class="pi pi-file-pdf"/> {{ storeStats.pdf }} PDF</span>
 
-            <!-- Add placeholder -->
+          </div>
+
+          <!-- Loading -->
+          <div v-if="storeLoading" class="store-loading">
+            <div class="tc-spinner"/> Excel-ден жүктелуде…
+          </div>
+
+          <!-- Grid -->
+          <div v-else class="lessons-grid">
+            <transition-group name="lesson-card-fade" tag="div" class="lg-inner">
+              <div
+                  v-for="lesson in filteredStoreLessons"
+                  :key="lesson.id"
+                  class="lesson-manage-card"
+              >
+                <div class="lmc-top">
+                  <span class="lmc-type" :class="lesson.type">
+                    <i :class="'pi ' + typeIcon(lesson.type)"/>
+                    {{ lesson.type }}
+                  </span>
+                  <span class="lmc-level" :class="lvClass(lesson.level)">{{ lesson.level }}</span>
+                </div>
+                <h3 class="lmc-title">{{ lesson.title }}</h3>
+                <p class="lmc-desc">{{ lesson.description }}</p>
+                <div class="lmc-meta">
+                  <span><i class="pi pi-tag"/> {{ lesson.topic }}</span>
+                  <span><i class="pi pi-clock"/> {{ lesson.duration }}</span>
+                </div>
+                <div class="lmc-actions">
+                  <button class="lmc-btn edit"
+                          @click="$router.push({ name: 'add-lesson', query: { id: lesson.id } })">
+                    <i class="pi pi-pencil"/> Өзгерту
+                  </button>
+                  <button class="lmc-btn delete" @click="confirmDelete(lesson)">
+                    <i class="pi pi-trash"/>
+                  </button>
+                </div>
+              </div>
+            </transition-group>
+
+            <!-- Add card -->
             <div class="lesson-add-card" @click="$router.push({ name: 'add-lesson' })">
               <i class="pi pi-plus"/>
               <span>Жаңа сабақ қосу</span>
             </div>
           </div>
 
-          <!-- Add lesson dialog -->
-          <Dialog v-model:visible="addLessonDialog" header="Жаңа сабақ қосу" :style="{ width:'560px', maxWidth:'95vw' }" modal>
-            <div class="add-lesson-form">
-              <div class="alf-field">
-                <label>Сабақ атауы</label>
-                <input v-model="newLesson.title" class="alf-input" placeholder="Сабақ атауын жазыңыз"/>
-              </div>
-              <div class="alf-row">
-                <div class="alf-field">
-                  <label>Тип</label>
-                  <select v-model="newLesson.type" class="alf-select">
-                    <option value="video">Видео</option>
-                    <option value="text">Конспект</option>
-                    <option value="pdf">PDF</option>
-                  </select>
+          <!-- Empty state -->
+          <div v-if="!storeLoading && !filteredStoreLessons.length" class="empty-state">
+            <i class="pi pi-book"/>
+            <p>Сабақ табылмады</p>
+            <button class="btn-gold" @click="storeReload">
+              <i class="pi pi-refresh"/> Excel-ден жүктеу
+            </button>
+          </div>
+
+          <!-- Delete confirm modal (custom, no PrimeVue) -->
+          <teleport to="body">
+            <transition name="del-modal-fade">
+              <div v-if="deleteDialog.show" class="del-modal-overlay" @click.self="deleteDialog.show = false">
+                <div class="del-modal">
+                  <div class="del-modal-icon">
+                    <i class="pi pi-exclamation-triangle"/>
+                  </div>
+                  <h3 class="del-modal-title">Сабақты өшіру</h3>
+                  <p class="del-modal-body">
+                    <strong>«{{ deleteDialog.lesson?.title }}»</strong><br/>
+                    сабағын өшіргіңіз келе ме?
+                  </p>
+
+                  <div class="del-modal-actions">
+                    <button class="del-btn-confirm" @click="doDelete">
+                      <i class="pi pi-trash"/> Өшіру
+                    </button>
+                    <button class="del-btn-cancel" @click="deleteDialog.show = false">
+                      Бас тарту
+                    </button>
+                  </div>
                 </div>
-                <div class="alf-field">
-                  <label>Деңгей</label>
-                  <select v-model="newLesson.level" class="alf-select">
-                    <option>Оңай</option><option>Орташа</option><option>Жоғары</option>
-                  </select>
-                </div>
               </div>
-              <div class="alf-field">
-                <label>Тақырып</label>
-                <input v-model="newLesson.topic" class="alf-input" placeholder="Классика, Поэзия…"/>
-              </div>
-              <div class="alf-field">
-                <label>Файл жолы (fileUrl)</label>
-                <input v-model="newLesson.fileUrl" class="alf-input" placeholder="/videos/lesson.mp4 немесе YouTube URL"/>
-              </div>
-              <div class="alf-field">
-                <label>Сыныптар</label>
-                <input v-model="newLesson.classes" class="alf-input" placeholder="8А,8Ә,8Б"/>
-              </div>
-              <p class="alf-hint">
-                <i class="pi pi-info-circle"/> Сабақ деректері <strong>Sabaqtar_MB.xlsx</strong> файлына қолмен қосылады.
-                Бұл форма Excel-ге жазу функциясының үлгісі.
-              </p>
-              <div class="alf-actions">
-                <button class="btn-gold" @click="saveLesson">
-                  <i class="pi pi-save"/> Excel-ге қосу (үлгі)
-                </button>
-                <button class="btn-outline" @click="addLessonDialog = false">Бас тарту</button>
-              </div>
-            </div>
-          </Dialog>
+            </transition>
+          </teleport>
+
         </div>
 
         <!-- ──────────────────────────────────────────── -->
-        <!-- SECTION: ТЕСТТЕР                           -->
+        <!-- SECTION: ТЕСТТЕР (localStorage + store)   -->
         <!-- ──────────────────────────────────────────── -->
         <div v-else-if="activeSection === 'tests'" class="section-wrap">
-          <div class="section-actions">
-            <button class="btn-gold" @click="$router.push('/interactive')">
-              <i class="pi pi-external-link"/> Тест модуліне өту
-            </button>
-          </div>
-          <div class="section-card">
-            <div class="sc-head"><i class="pi pi-file-edit"/> Excel арқылы тест басқару</div>
-            <div class="excel-info-block">
-              <div class="eib-item">
-                <div class="eib-icon"><i class="pi pi-file-excel"/></div>
-                <div>
-                  <span class="eib-title">Тапсырмалар_МБ.xlsx</span>
-                  <span class="eib-desc">MCQ, Дұрыс/Бұрыс, Бос орын, Сәйкестендіру — Excel-де</span>
-                </div>
-                <a href="/data/Тапсырмалар_МБ.xlsx" download class="eib-dl">
-                  <i class="pi pi-download"/> Жүктеу
-                </a>
-              </div>
-              <div class="eib-item">
-                <div class="eib-icon"><i class="pi pi-chart-bar"/></div>
-                <div>
-                  <span class="eib-title">Auth_MB.xlsx → 📊 Оқушы нәтижелері</span>
-                  <span class="eib-desc">Барлық нәтижелер автоматты жиналады</span>
-                </div>
-                <a href="/data/Auth_MB.xlsx" download class="eib-dl">
-                  <i class="pi pi-download"/> Жүктеу
-                </a>
-              </div>
+
+          <!-- Toolbar -->
+          <div class="lessons-toolbar">
+            <div class="lt-search">
+              <i class="pi pi-search"/>
+              <input v-model="tasksSearch" class="lt-input" placeholder="Тапсырма іздеу…"/>
+              <button v-if="tasksSearch" class="lt-clear" @click="tasksSearch = ''">
+                <i class="pi pi-times"/>
+              </button>
+            </div>
+            <div class="lt-types">
+              <button
+                  v-for="t in taskTypeTabs"
+                  :key="t.val"
+                  class="lt-type-btn task-tab"
+                  :class="[t.key, { active: tasksFilter === t.val }]"
+                  @click="tasksFilter = t.val"
+              >{{ t.label }}</button>
+            </div>
+            <div class="lt-actions">
+              <button class="btn-gold" @click="$router.push({ name: 'add-task' })">
+                <i class="pi pi-plus"/> Тапсырма қосу
+              </button>
+              <button class="btn-excel" @click="tasksStore.exportToExcel()" title="Excel-ге жүктеу">
+                <i class="pi pi-file-excel"/> Excel
+              </button>
+              <button class="btn-reload" @click="tasksStore.reloadFromExcel()" :disabled="tasksLoading">
+                <i class="pi pi-refresh" :class="{ spinning: tasksLoading }"/>
+              </button>
             </div>
           </div>
+
+          <!-- Stats chips -->
+          <div class="store-stats-row">
+            <span class="ssr-item total">
+              <i class="pi pi-database"/> Барлығы: <strong>{{ tasksStats.total }}</strong>
+            </span>
+            <span class="ssr-item" style="background:rgba(196,146,42,.1);color:#c4922a">
+              <i class="pi pi-list-check"/> {{ tasksStats.mcq }} MCQ
+            </span>
+            <span class="ssr-item" style="background:rgba(58,92,58,.1);color:#3a5c3a">
+              <i class="pi pi-check-square"/> {{ tasksStats.tf }} Д/Б
+            </span>
+            <span class="ssr-item" style="background:rgba(139,58,30,.1);color:#8b3a1e">
+              <i class="pi pi-pencil"/> {{ tasksStats.fill }} Бос
+            </span>
+            <span class="ssr-item" style="background:rgba(42,58,92,.1);color:#2a3a5c">
+              <i class="pi pi-arrows-h"/> {{ tasksStats.match }} Сәйк.
+            </span>
+          </div>
+
+          <!-- Loading -->
+          <div v-if="tasksLoading" class="store-loading">
+            <div class="tc-spinner"/> Excel-ден жүктелуде…
+          </div>
+
+          <!-- Tasks grid -->
+          <div v-else class="lessons-grid">
+            <transition-group name="lesson-card-fade" tag="div" class="lg-inner">
+              <div
+                  v-for="task in filteredTasks"
+                  :key="task.id"
+                  class="lesson-manage-card task-card-item"
+              >
+                <div class="lmc-top">
+                  <span class="lmc-type task-type" :class="taskTypeKey(task.type)">
+                    <i :class="'pi ' + taskTypeIcon(task.type)"/>
+                    {{ taskTypeLabel(task.type) }}
+                  </span>
+                  <span class="lmc-level" :class="lvClass(task.level)">{{ task.level }}</span>
+                </div>
+
+                <!-- MCQ -->
+                <p class="lmc-title" v-if="task.type !== 'match'">{{ task.text }}</p>
+                <p class="lmc-title" v-else>{{ task.title }}</p>
+
+                <!-- Type-specific preview -->
+                <div class="task-mini-preview">
+                  <template v-if="task.type === 'mcq'">
+                    <span class="tmp-opt" v-for="(opt,i) in [task.optionA,task.optionB,task.optionC,task.optionD].filter(Boolean).slice(0,4)" :key="i"
+                          :class="{ correct: task.answer === i+1 }">
+                      {{ String.fromCharCode(65+i) }}. {{ opt }}
+                    </span>
+                  </template>
+                  <template v-else-if="task.type === 'truefalse'">
+                    <span class="tmp-tf" :class="task.answer ? 'true' : 'false'">
+                      {{ task.answer ? '✓ Дұрыс' : '✗ Бұрыс' }}
+                    </span>
+                  </template>
+                  <template v-else-if="task.type === 'fillblank'">
+                    <span class="tmp-ans">{{ task.answers?.join(', ') }}</span>
+                  </template>
+                  <template v-else-if="task.type === 'match'">
+                    <span class="tmp-pairs">{{ task.pairs?.length }} жұп</span>
+                  </template>
+                </div>
+
+                <div class="lmc-meta">
+                  <span><i class="pi pi-tag"/> {{ task.topic }}</span>
+                </div>
+                <div class="lmc-actions">
+                  <button class="lmc-btn edit"
+                          @click="$router.push({ name:'add-task', query:{ id: task.id } })">
+                    <i class="pi pi-pencil"/> Өзгерту
+                  </button>
+                  <button class="lmc-btn delete" @click="confirmTaskDelete(task)">
+                    <i class="pi pi-trash"/>
+                  </button>
+                </div>
+              </div>
+            </transition-group>
+
+            <!-- Add card -->
+            <div class="lesson-add-card" @click="$router.push({ name: 'add-task' })">
+              <i class="pi pi-plus"/>
+              <span>Жаңа тапсырма қосу</span>
+            </div>
+          </div>
+
+          <div v-if="!tasksLoading && !filteredTasks.length" class="empty-state">
+            <i class="pi pi-list-check"/>
+            <p>Тапсырма табылмады</p>
+            <button class="btn-gold" @click="tasksStore.reloadFromExcel()">
+              <i class="pi pi-refresh"/> Excel-ден жүктеу
+            </button>
+          </div>
+
+          <!-- Delete modal -->
+          <teleport to="body">
+            <transition name="del-modal-fade">
+              <div v-if="deleteTaskDialog.show" class="del-modal-overlay" @click.self="deleteTaskDialog.show = false">
+                <div class="del-modal">
+                  <div class="del-modal-icon">
+                    <i class="pi pi-exclamation-triangle"/>
+                  </div>
+                  <h3 class="del-modal-title">Тапсырманы өшіру</h3>
+                  <p class="del-modal-body">
+                    <strong>«{{ deleteTaskDialog.task?.text || deleteTaskDialog.task?.title }}»</strong><br/>
+                    тапсырмасын өшіргіңіз келе ме?
+                  </p>
+                  <div class="del-modal-actions">
+                    <button class="del-btn-confirm" @click="doTaskDelete">
+                      <i class="pi pi-trash"/> Өшіру
+                    </button>
+                    <button class="del-btn-cancel" @click="deleteTaskDialog.show = false">
+                      Бас тарту
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </transition>
+          </teleport>
+
         </div>
 
         <!-- ──────────────────────────────────────────── -->
@@ -259,34 +425,34 @@
             <div class="results-table-wrap">
               <table class="results-table">
                 <thead>
-                  <tr>
-                    <th @click="sortBy('studentName')">Оқушы <i class="pi pi-sort-alt"/></th>
-                    <th>Сынып</th>
-                    <th>Тапсырма</th>
-                    <th @click="sortBy('pct')">Балл % <i class="pi pi-sort-alt"/></th>
-                    <th>Деңгей</th>
-                    <th>Күн</th>
-                    <th>Ескерту</th>
-                  </tr>
+                <tr>
+                  <th @click="sortBy('studentName')">Оқушы <i class="pi pi-sort-alt"/></th>
+                  <th>Сынып</th>
+                  <th>Тапсырма</th>
+                  <th @click="sortBy('pct')">Балл % <i class="pi pi-sort-alt"/></th>
+                  <th>Деңгей</th>
+                  <th>Күн</th>
+                  <th>Ескерту</th>
+                </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="r in filteredResults" :key="r.studentId+r.taskName+r.date">
-                    <td class="rt-name">{{ r.studentName }}</td>
-                    <td><span class="class-tag">{{ r.class }}</span></td>
-                    <td class="rt-task">{{ r.taskName }}</td>
-                    <td>
-                      <div class="pct-bar-wrap">
-                        <div class="pct-bar" :style="{ width: r.pct+'%', background: pctColor(r.pct) }"/>
-                        <span class="pct-num">{{ r.pct }}%</span>
-                      </div>
-                    </td>
-                    <td><span class="grade-chip" :class="gradeClass(r.grade)">{{ r.grade }}</span></td>
-                    <td class="rt-date">{{ r.date }}</td>
-                    <td class="rt-note">{{ r.note }}</td>
-                  </tr>
-                  <tr v-if="!filteredResults.length">
-                    <td colspan="7" class="rt-empty">Нәтиже табылмады</td>
-                  </tr>
+                <tr v-for="r in filteredResults" :key="r.studentId+r.taskName+r.date">
+                  <td class="rt-name">{{ r.studentName }}</td>
+                  <td><span class="class-tag">{{ r.class }}</span></td>
+                  <td class="rt-task">{{ r.taskName }}</td>
+                  <td>
+                    <div class="pct-bar-wrap">
+                      <div class="pct-bar" :style="{ width: r.pct+'%', background: pctColor(r.pct) }"/>
+                      <span class="pct-num">{{ r.pct }}%</span>
+                    </div>
+                  </td>
+                  <td><span class="grade-chip" :class="gradeClass(r.grade)">{{ r.grade }}</span></td>
+                  <td class="rt-date">{{ r.date }}</td>
+                  <td class="rt-note">{{ r.note }}</td>
+                </tr>
+                <tr v-if="!filteredResults.length">
+                  <td colspan="7" class="rt-empty">Нәтиже табылмады</td>
+                </tr>
                 </tbody>
               </table>
             </div>
@@ -327,10 +493,10 @@
               <!-- Reply form -->
               <div v-else class="cmc-reply-form">
                 <textarea
-                  v-model="replyTexts[c.studentId + c.date]"
-                  class="reply-ta"
-                  placeholder="Жауап жазыңыз…"
-                  rows="2"
+                    v-model="replyTexts[c.studentId + c.date]"
+                    class="reply-ta"
+                    placeholder="Жауап жазыңыз…"
+                    rows="2"
                 />
                 <button class="btn-gold btn-sm" @click="sendReply(c)">
                   <i class="pi pi-send"/> Жіберу
@@ -384,11 +550,41 @@
 <script setup>
 import { ref, computed, onMounted, reactive } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuth }   from '@/composables/useAuth'
+import { useAuth }         from '@/composables/useAuth'
+import { useLessonsStore } from '@/composables/useLessonsStore'
+import { useTasksStore }   from '@/composables/useTasksStore'
 import Dialog from 'primevue/dialog'
 
 const router = useRouter()
-const { currentUser, logout, loadResults, loadComments, loadTeacherProfile, loadTeacherLessons } = useAuth()
+const { currentUser, logout, loadResults, loadComments, loadTeacherProfile } = useAuth()
+
+// ── Lessons store ─────────────────────────────────────
+const {
+  lessons: storeLessons,
+  loading: storeLoading,
+  stats:   storeStats,
+  init:    storeInit,
+  reloadFromExcel: storeReload,
+  deleteLesson:    storeDelete,
+  exportToExcel:   storeExportToExcel,
+} = useLessonsStore()
+
+// ── Constants ─────────────────────────────────────────
+const LESSON_TYPES = [
+  { val:'video', label:'Видео',    icon:'pi-play-circle' },
+  { val:'pdf',   label:'PDF',      icon:'pi-file-pdf'    },
+]
+const taskTypeTabs = [
+  { val:'all',        key:'all',   label:'Барлығы'        },
+  { val:'mcq',        key:'mcq',   label:'Тест'       },
+  { val:'truefalse',  key:'tf',    label:'Дұрыс/Бұрыс'   },
+  { val:'fillblank',  key:'fill',  label:'Бос орын'       },
+  { val:'match',      key:'match', label:'Сәйкестендіру'  },
+]
+
+// ── Tasks store ───────────────────────────────────────
+const tasksStore = useTasksStore()
+const { tasks: storeTasks, loading: tasksLoading, stats: tasksStats } = tasksStore
 
 // ── State ─────────────────────────────────────────────
 const loading          = ref(true)
@@ -397,56 +593,114 @@ const activeSection    = ref('dashboard')
 const results          = ref([])
 const comments         = ref([])
 const teacherProfile   = ref({})
-const teacherLessons   = ref([])
 const resultsSearch    = ref('')
 const resultsClass     = ref('')
-const addLessonDialog  = ref(false)
 const replyTexts       = reactive({})
 const sortField        = ref('date')
 const sortDir          = ref(-1)
 
-const newLesson = reactive({ title:'', type:'video', level:'Орташа', topic:'', fileUrl:'', classes:'8А,8Ә,8Б' })
+// Lessons filter/search
+const lessonsSearch = ref('')
+const lessonsFilter = ref('all')
+
+// Tasks filter/search
+const tasksSearch  = ref('')
+const tasksFilter  = ref('all')
+
+// Delete dialogs
+const deleteDialog     = reactive({ show: false, lesson: null })
+const deleteTaskDialog = reactive({ show: false, task: null })
 
 const today = new Date().toLocaleDateString('kk-KZ', { weekday:'long', year:'numeric', month:'long', day:'numeric' })
 
 // ── Nav items ─────────────────────────────────────────
 const navItems = computed(() => [
-  { key:'dashboard', label:'Басты бет',  icon:'pi-home'         },
-  { key:'lessons',   label:'Сабақтар',   icon:'pi-book'         },
-  { key:'tests',     label:'Тесттер',    icon:'pi-list-check'   },
-  { key:'results',   label:'Нәтижелер',  icon:'pi-chart-bar', badge: results.value.length || null },
-  { key:'comments',  label:'Пікірлер',   icon:'pi-comments',  badge: comments.value.filter(c=>!c.reply).length || null },
-  { key:'profile',   label:'Профиль',    icon:'pi-user'         },
+  { key:'dashboard', label:'Басты бет', icon:'pi-home'                                                  },
+  { key:'lessons',   label:'Сабақтар',  icon:'pi-book',     badge: storeStats.value.total || null       },
+  { key:'tests',     label:'Тесттер',   icon:'pi-list-check'                                            },
+  { key:'results',   label:'Нәтижелер', icon:'pi-chart-bar', badge: results.value.length || null        },
+  { key:'comments',  label:'Пікірлер',  icon:'pi-comments',  badge: comments.value.filter(c=>!c.reply).length || null },
+  { key:'profile',   label:'Профиль',   icon:'pi-user'                                                  },
 ])
 const currentNavItem = computed(() => navItems.value.find(n => n.key === activeSection.value))
+
+// ── Filtered lessons from store ───────────────────────
+const filteredStoreLessons = computed(() => {
+  let list = storeLessons.value
+  if (lessonsFilter.value !== 'all') list = list.filter(l => l.type === lessonsFilter.value)
+  if (lessonsSearch.value.trim()) {
+    const q = lessonsSearch.value.toLowerCase()
+    list = list.filter(l =>
+        l.title.toLowerCase().includes(q) ||
+        (l.topic||'').toLowerCase().includes(q) ||
+        (l.author||'').toLowerCase().includes(q)
+    )
+  }
+  return list
+})
 
 // ── Load data ─────────────────────────────────────────
 onMounted(async () => {
   try {
-    const [res, com, prof, les] = await Promise.all([
+    // Store init (Excel → localStorage)
+    storeInit()
+    tasksStore.init()
+    const [res, com, prof] = await Promise.all([
       loadResults(),
       loadComments(),
       loadTeacherProfile(currentUser.value?.id),
-      loadTeacherLessons(currentUser.value?.id),
     ])
     results.value       = res
     comments.value      = com
     teacherProfile.value= prof
-    teacherLessons.value= les
   } catch(e) { console.error(e) }
   finally { loading.value = false }
 })
 
+// ── Filtered tasks from store ──────────────────────────
+const filteredTasks = computed(() => {
+  let list = storeTasks.value
+  if (tasksFilter.value !== 'all') list = list.filter(t => t.type === tasksFilter.value)
+  if (tasksSearch.value.trim()) {
+    const q = tasksSearch.value.toLowerCase()
+    list = list.filter(t =>
+        (t.text  || '').toLowerCase().includes(q) ||
+        (t.title || '').toLowerCase().includes(q) ||
+        (t.topic || '').toLowerCase().includes(q)
+    )
+  }
+  return list
+})
+
+function taskTypeKey(type)   { return {mcq:'mcq',truefalse:'tf',fillblank:'fill',match:'match'}[type]||'' }
+function taskTypeIcon(type)  { return {mcq:'pi-list-check',truefalse:'pi-check-square',fillblank:'pi-pencil',match:'pi-arrows-h'}[type]||'pi-question' }
+function taskTypeLabel(type) { return {mcq:'MCQ',truefalse:'Д/Б',fillblank:'Бос орын',match:'Сәйкест.'}[type]||type }
+
+function confirmTaskDelete(task) { deleteTaskDialog.task = task; deleteTaskDialog.show = true }
+function doTaskDelete() {
+  if (deleteTaskDialog.task) tasksStore.deleteTask(deleteTaskDialog.task.id)
+  deleteTaskDialog.show = false; deleteTaskDialog.task = null
+}
+function confirmDelete(lesson) {
+  deleteDialog.lesson = lesson
+  deleteDialog.show   = true
+}
+function doDelete() {
+  if (deleteDialog.lesson) storeDelete(deleteDialog.lesson.id)
+  deleteDialog.show   = false
+  deleteDialog.lesson = null
+}
+
 // ── Dashboard stats ───────────────────────────────────
 const dashStats = computed(() => {
   const avg = results.value.length
-    ? Math.round(results.value.reduce((s,r)=>s+r.pct,0)/results.value.length)
-    : 0
+      ? Math.round(results.value.reduce((s,r)=>s+r.pct,0)/results.value.length)
+      : 0
   return [
-    { label:'Барлық нәтиже',  val: results.value.length,                         icon:'pi-list',     bg:'rgba(196,146,42,.1)',  color:'#c4922a' },
-    { label:'Орташа балл',    val: avg+'%',                                       icon:'pi-chart-bar',bg:'rgba(58,92,58,.1)',    color:'#3a5c3a' },
-    { label:'Жарияланды',     val: teacherLessons.value.filter(l=>l.status==='жарияланды').length, icon:'pi-book', bg:'rgba(42,58,92,.1)', color:'#2a3a5c' },
-    { label:'Жауапсыз пікір', val: comments.value.filter(c=>!c.reply).length,    icon:'pi-comments', bg:'rgba(139,58,30,.1)',   color:'#8b3a1e' },
+    { label:'Барлық нәтиже',  val: results.value.length,                          icon:'pi-list',      bg:'rgba(196,146,42,.1)', color:'#c4922a' },
+    { label:'Орташа балл',    val: avg+'%',                                        icon:'pi-chart-bar', bg:'rgba(58,92,58,.1)',   color:'#3a5c3a' },
+    { label:'Сабақтар саны',  val: storeStats.value.total,                         icon:'pi-book',      bg:'rgba(42,58,92,.1)',   color:'#2a3a5c' },
+    { label:'Жауапсыз пікір', val: comments.value.filter(c=>!c.reply).length,     icon:'pi-comments',  bg:'rgba(139,58,30,.1)',  color:'#8b3a1e' },
   ]
 })
 
@@ -471,9 +725,9 @@ function typeIcon(t)  { return { video:'pi-play-circle', text:'pi-file-edit', pd
 function pctClass(p)  { return p >= 80 ? 'good' : p >= 50 ? 'mid' : 'low' }
 function pctColor(p)  { return p >= 80 ? '#3a5c3a' : p >= 50 ? '#c4922a' : '#8b3a1e' }
 function gradeClass(g){ return { 'Өте жақсы':'very-good', 'Жақсы':'good', 'Қанағат.':'mid', 'Қайталаңыз':'low' }[g] || '' }
+function lvClass(lv)  { return { 'Оңай':'lv-easy', 'Орташа':'lv-mid', 'Жоғары':'lv-hard' }[lv] || '' }
 
 function doLogout() { logout(); router.push({ name:'login' }) }
-function saveLesson() { addLessonDialog.value = false; alert('Excel-ге қосу: Sabaqtar_MB.xlsx файлына қолмен енгізіңіз.') }
 function exportResults() { alert('Нәтижелер Auth_MB.xlsx → 📊 Оқушы нәтижелері бетінде.') }
 function sendReply(c) {
   const key  = c.studentId + c.date
@@ -628,35 +882,152 @@ function sendReply(c) {
 .grade-chip.mid       { background: rgba(230,81,0,.1);   color: #e65100; }
 .grade-chip.low       { background: rgba(183,28,28,.1);  color: #b71c1c; }
 
-/* Lessons grid */
-.section-actions { display: flex; gap: .75rem; flex-wrap: wrap; }
-.lessons-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px,1fr)); gap: 1rem; }
-.lesson-manage-card {
-  background: #fff; border: 1px solid var(--border); border-radius: 3px; padding: 1.1rem;
-  display: flex; flex-direction: column; gap: .5rem; transition: box-shadow .2s;
-}
-.lesson-manage-card:hover { box-shadow: 0 4px 20px rgba(26,18,8,.1); }
-.lmc-top    { display: flex; justify-content: space-between; align-items: center; }
-.lmc-type   { display: inline-flex; align-items: center; gap: .3rem; font-size: .62rem; font-weight: 700; text-transform: uppercase; padding: .18rem .5rem; border-radius: 1px; color: #fff; }
-.lmc-type.video { background: var(--rust); } .lmc-type.text { background: var(--sage); } .lmc-type.pdf { background: var(--navy); }
-.lmc-status { font-size: .62rem; font-weight: 700; padding: .12rem .42rem; border-radius: 1px; }
-.lmc-status.pub { background: rgba(58,92,58,.1); color: var(--sage); }
-.lmc-status.hid { background: rgba(196,146,42,.1); color: var(--gold); }
-.lmc-title { font-family: 'Playfair Display', serif; font-size: .92rem; font-weight: 700; color: var(--dark); margin: 0; line-height: 1.3; }
-.lmc-meta  { display: flex; flex-direction: column; gap: .2rem; font-size: .7rem; color: #9a8a72; }
-.lmc-meta i{ color: var(--gold); margin-right: .25rem; font-size: .65rem; }
-.lmc-actions { display: flex; gap: .4rem; margin-top: .25rem; }
-.lmc-btn { display: inline-flex; align-items: center; gap: .3rem; font-size: .72rem; border: 1px solid var(--border); border-radius: 1px; background: transparent; cursor: pointer; padding: .3rem .65rem; transition: all .2s; }
-.lmc-btn.edit:hover   { border-color: var(--gold); color: var(--gold); }
-.lmc-btn.delete:hover { border-color: var(--rust); color: var(--rust); }
+/* Lessons toolbar */
+.lessons-toolbar { display:flex; align-items:center; gap:.65rem; flex-wrap:wrap; margin-bottom:.75rem; }
+.lt-search { display:flex; align-items:center; gap:.45rem; flex:1; min-width:180px; background:#fff; border:1.5px solid var(--border); border-radius:2px; padding:.42rem .7rem; }
+.lt-search i { color:#b0a090; font-size:.78rem; }
+.lt-input  { flex:1; border:none; outline:none; font-family:'Source Serif 4',serif; font-size:.8rem; color:var(--dark); }
+.lt-input::placeholder { color:#b0a090; font-style:italic; }
+.lt-clear  { background:none; border:none; color:#b0a090; cursor:pointer; font-size:.72rem; }
+.lt-clear:hover { color:var(--rust); }
+.lt-types  { display:flex; gap:.3rem; flex-wrap:wrap; }
+.lt-type-btn { padding:.38rem .75rem; border:1.5px solid var(--border); border-radius:2px; background:transparent; font-family:'Source Serif 4',serif; font-size:.75rem; font-weight:600; color:#7a6a52; cursor:pointer; transition:all .2s; }
+.lt-type-btn:hover { border-color:var(--gold); color:var(--gold); }
+.lt-type-btn.active { color:#fff; border-color:transparent; }
+.lt-type-btn.all.active   { background:var(--gold); }
+.lt-type-btn.video.active { background:var(--rust); }
+.lt-type-btn.text.active  { background:var(--sage); }
+.lt-type-btn.pdf.active   { background:var(--navy); }
+.lt-actions { display:flex; align-items:center; gap:.4rem; margin-left:auto; }
+.btn-excel  { display:inline-flex; align-items:center; gap:.35rem; background:rgba(58,92,58,.1); border:1px solid rgba(58,92,58,.3); color:var(--sage); padding:.48rem .85rem; border-radius:2px; font-size:.78rem; font-weight:600; cursor:pointer; transition:all .2s; }
+.btn-excel:hover { background:var(--sage); color:#fff; }
+.btn-reload { width:34px; height:34px; border:1.5px solid var(--border); border-radius:2px; background:#fff; color:#7a6a52; display:flex; align-items:center; justify-content:center; font-size:.82rem; cursor:pointer; transition:all .2s; }
+.btn-reload:hover:not(:disabled) { border-color:var(--gold); color:var(--gold); }
+.btn-reload:disabled { opacity:.4; cursor:not-allowed; }
+.spinning { animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
 
-.lesson-add-card {
-  background: transparent; border: 1.5px dashed var(--border); border-radius: 3px;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: .5rem; padding: 2rem; color: #b0a090; cursor: pointer; transition: all .2s; min-height: 160px;
+/* Store stats row */
+.store-stats-row { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem; margin-bottom:.75rem; }
+.ssr-item { display:inline-flex; align-items:center; gap:.3rem; font-size:.72rem; padding:.2rem .55rem; border-radius:10px; }
+.ssr-item i { font-size:.68rem; }
+.ssr-item.total { background:rgba(196,146,42,.1); color:var(--gold); }
+.ssr-item.total strong { font-weight:700; }
+.ssr-item.video { background:rgba(139,58,30,.08); color:var(--rust); }
+.ssr-item.text  { background:rgba(58,92,58,.08);  color:var(--sage); }
+.ssr-item.pdf   { background:rgba(42,58,92,.08);  color:var(--navy); }
+.ssr-source { margin-left:auto; font-size:.68rem; color:#b0a090; font-style:italic; display:flex; align-items:center; gap:.3rem; }
+
+/* Store loading */
+.store-loading { display:flex; align-items:center; gap:.75rem; padding:2rem; color:#9a8a72; font-style:italic; }
+
+/* Lessons grid */
+.lessons-grid { margin-bottom:.75rem; }
+.lg-inner { display:grid; grid-template-columns:repeat(auto-fill,minmax(235px,1fr)); gap:1rem; }
+.lesson-manage-card { background:#fff; border:1px solid var(--border); border-radius:3px; padding:1.1rem; display:flex; flex-direction:column; gap:.5rem; transition:box-shadow .2s,transform .2s; }
+.lesson-manage-card:hover { box-shadow:0 4px 20px rgba(26,18,8,.1); transform:translateY(-2px); }
+
+.lmc-top { display:flex; justify-content:space-between; align-items:center; }
+.lmc-type { display:inline-flex; align-items:center; gap:.3rem; font-size:.62rem; font-weight:700; text-transform:uppercase; padding:.18rem .5rem; border-radius:1px; color:#fff; }
+.lmc-type.video { background:var(--rust); } .lmc-type.text { background:var(--sage); } .lmc-type.pdf { background:var(--navy); }
+.lmc-level { font-size:.6rem; font-weight:700; padding:.12rem .42rem; border-radius:1px; }
+.lmc-level.lv-easy { background:#e8f5e9; color:#2e7d32; }
+.lmc-level.lv-mid  { background:#fff3e0; color:#e65100; }
+.lmc-level.lv-hard { background:#fce4ec; color:#b71c1c; }
+.lmc-title { font-family:'Playfair Display',serif; font-size:.92rem; font-weight:700; color:var(--dark); margin:0; line-height:1.3; }
+.lmc-desc  { font-size:.72rem; color:#7a6a52; line-height:1.5; margin:0; flex:1; }
+.lmc-meta  { display:flex; gap:.65rem; flex-wrap:wrap; font-size:.7rem; color:#9a8a72; }
+.lmc-meta i{ color:var(--gold); margin-right:.2rem; font-size:.65rem; }
+.lmc-actions { display:flex; gap:.4rem; }
+.lmc-btn { display:inline-flex; align-items:center; gap:.3rem; font-size:.72rem; border:1px solid var(--border); border-radius:1px; background:transparent; cursor:pointer; padding:.3rem .65rem; transition:all .2s; }
+.lmc-btn.edit:hover   { border-color:var(--gold); color:var(--gold); }
+.lmc-btn.delete:hover { border-color:var(--rust);  color:var(--rust); }
+
+.lesson-add-card { background:transparent; border:1.5px dashed var(--border); border-radius:3px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:.5rem; padding:2rem; color:#b0a090; cursor:pointer; transition:all .2s; min-height:160px; }
+.lesson-add-card:hover { border-color:var(--gold); color:var(--gold); background:rgba(196,146,42,.04); }
+.lesson-add-card i { font-size:1.5rem; }
+
+/* Lesson card transitions */
+.lesson-card-fade-enter-active,.lesson-card-fade-leave-active { transition:opacity .25s,transform .25s; }
+.lesson-card-fade-enter-from,.lesson-card-fade-leave-to { opacity:0; transform:scale(.96); }
+
+/* Delete modal */
+.del-modal-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(19, 14, 7, 0.72);
+  backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 1rem;
 }
-.lesson-add-card:hover { border-color: var(--gold); color: var(--gold); background: rgba(196,146,42,.04); }
-.lesson-add-card i { font-size: 1.5rem; }
+.del-modal {
+  background: #faf6ef;
+  border: 1px solid #d9cdb8;
+  border-top: 4px solid #8b3a1e;
+  border-radius: 4px;
+  padding: 2rem 2rem 1.75rem;
+  width: 100%; max-width: 400px;
+  display: flex; flex-direction: column; align-items: center;
+  gap: 1rem; text-align: center;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.35);
+}
+.del-modal-icon {
+  width: 56px; height: 56px; border-radius: 50%;
+  background: rgba(139, 58, 30, 0.1);
+  display: flex; align-items: center; justify-content: center;
+}
+.del-modal-icon i { font-size: 1.6rem; color: #8b3a1e; }
+.del-modal-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.15rem; font-weight: 900;
+  color: #1a1208; margin: 0;
+}
+.del-modal-body {
+  font-size: .88rem; color: #3a2a15;
+  line-height: 1.65; margin: 0;
+}
+.del-modal-body strong { color: #1a1208; }
+.del-modal-hint {
+  display: flex; align-items: flex-start; gap: .4rem;
+  font-size: .75rem; color: #9a8a72; font-style: italic;
+  background: rgba(196,146,42,.07);
+  border: 1px solid rgba(196,146,42,.2);
+  border-radius: 2px; padding: .55rem .75rem;
+  text-align: left; width: 100%;
+}
+.del-modal-hint i { color: #c4922a; flex-shrink: 0; margin-top: .1rem; }
+.del-modal-hint strong { color: #1a1208; font-style: normal; }
+.del-modal-actions {
+  display: flex; gap: .65rem; width: 100%; justify-content: center;
+}
+.del-btn-confirm {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center;
+  gap: .45rem; background: #8b3a1e; color: #fff; border: none;
+  padding: .65rem 1rem; border-radius: 2px;
+  font-family: 'Source Serif 4', serif; font-size: .875rem; font-weight: 700;
+  cursor: pointer; transition: background .2s;
+}
+.del-btn-confirm:hover { background: #a04428; }
+.del-btn-cancel {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center;
+  gap: .45rem; background: transparent;
+  border: 1.5px solid #d9cdb8; color: #7a6a52;
+  padding: .65rem 1rem; border-radius: 2px;
+  font-family: 'Source Serif 4', serif; font-size: .875rem;
+  cursor: pointer; transition: all .2s;
+}
+.del-btn-cancel:hover { border-color: #c4922a; color: #c4922a; }
+
+/* Modal animation */
+.del-modal-fade-enter-active, .del-modal-fade-leave-active {
+  transition: opacity .25s ease;
+}
+.del-modal-fade-enter-active .del-modal,
+.del-modal-fade-leave-active .del-modal {
+  transition: transform .25s ease;
+}
+.del-modal-fade-enter-from, .del-modal-fade-leave-to { opacity: 0; }
+.del-modal-fade-enter-from .del-modal { transform: scale(.93) translateY(8px); }
+.del-modal-fade-leave-to   .del-modal { transform: scale(.93) translateY(8px); }
 
 /* Filter row */
 .filter-row { display: flex; gap: .6rem; flex-wrap: wrap; }
@@ -734,4 +1105,26 @@ function sendReply(c) {
 .empty-state { display: flex; flex-direction: column; align-items: center; gap: .6rem; padding: 3.5rem 2rem; text-align: center; color: #9a8a72; font-style: italic; }
 .empty-state i { font-size: 2rem; color: var(--border); }
 .empty-state p { margin: 0; }
+
+/* Task type tabs */
+.task-tab.mcq.active   { background: var(--gold); }
+.task-tab.tf.active    { background: var(--sage); }
+.task-tab.fill.active  { background: var(--rust); }
+.task-tab.match.active { background: var(--navy); }
+
+/* Task card type badge */
+.task-type.mcq   { background: var(--gold); }
+.task-type.tf    { background: var(--sage); }
+.task-type.fill  { background: var(--rust); }
+.task-type.match { background: var(--navy); }
+
+/* Task mini preview */
+.task-mini-preview { display: flex; flex-wrap: wrap; gap: .28rem; margin: .2rem 0; }
+.tmp-opt { font-size: .68rem; color: #7a6a52; background: var(--parch); border: 1px solid var(--border); padding: .15rem .45rem; border-radius: 1px; }
+.tmp-opt.correct { background: rgba(58,92,58,.08); border-color: var(--sage); color: var(--sage); font-weight: 700; }
+.tmp-tf  { font-size: .72rem; font-weight: 700; padding: .18rem .55rem; border-radius: 1px; }
+.tmp-tf.true  { background: rgba(58,92,58,.1);  color: var(--sage); }
+.tmp-tf.false { background: rgba(139,58,30,.1); color: var(--rust); }
+.tmp-ans  { font-size: .72rem; color: var(--rust); background: rgba(139,58,30,.08); padding: .18rem .55rem; border-radius: 1px; font-weight: 600; }
+.tmp-pairs{ font-size: .72rem; color: var(--navy); background: rgba(42,58,92,.08); padding: .18rem .55rem; border-radius: 1px; font-weight: 600; }
 </style>
