@@ -12,7 +12,7 @@ import KonspektViewer from "@/components/KonspektViewer.vue";
 const route  = useRoute()
 const router = useRouter()
 
-const EXCEL_PATH = '/src/assets/datas/Sabaqtar_MB.xlsx'
+const EXCEL_PATH = '/data/Sabaqtar_MB.xlsx'
 
 // ─── State ────────────────────────────────────────────
 const status   = ref('loading')

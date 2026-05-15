@@ -393,7 +393,7 @@ import * as XLSX from 'xlsx'
 import { useResultsStore } from '@/composables/useResultsStore'
 import { useAuth }         from '@/composables/useAuth'
 
-const EXCEL_PATH  = '/src/assets/datas/Тапсырмалар_Мәліметтер_Базасы.xlsx'
+const EXCEL_PATH  = '/data/Тапсырмалар_Мәліметтер_Базасы.xlsx'
 const TYPE_ICONS  = { mcq:'pi-list-check', truefalse:'pi-check-square', fillblank:'pi-pencil', match:'pi-arrows-h' }
 const TYPE_LABELS = { mcq:'MCQ', truefalse:'Дұрыс/Бұрыс', fillblank:'Бос орын', match:'Сәйкестендіру' }
 const LEVEL_ORDER = ['Оңай','Орташа','Жоғары']

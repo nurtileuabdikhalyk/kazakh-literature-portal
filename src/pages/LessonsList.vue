@@ -8,7 +8,7 @@ const route  = useRoute()
 const router = useRouter()
 
 // ── Config ────────────────────────────────────────────
-const EXCEL_PATH = '/src/assets/datas/Sabaqtar_MB.xlsx'
+const EXCEL_PATH = '/data/Sabaqtar_MB.xlsx'
 const PER_PAGE     = 12
 
 const TYPE_TABS = [

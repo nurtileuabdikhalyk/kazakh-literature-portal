@@ -8,7 +8,7 @@ import * as XLSX from 'xlsx'
 const router = useRouter()
 
 // ── Config ────────────────────────────────────────────
-const EXCEL_PATH = '/src/assets/datas/Sabaqtar_MB.xlsx'
+const EXCEL_PATH = '/data/Sabaqtar_MB.xlsx'
 const PREVIEW_LIMIT = 12   // Басты бетте максимум 12 сабақ
 
 const TYPE_TABS = [

@@ -1,7 +1,7 @@
 
 import { ref, computed } from 'vue'
 import * as XLSX from 'xlsx'
-const EXCEL_PATH = '/src/assets/datas/Тапсырмалар_Мәліметтер_Базасы.xlsx'
+const EXCEL_PATH = '/data/Тапсырмалар_Мәліметтер_Базасы.xlsx'
 
 const LS_KEY      = 'tasks_store_v1'
 const LS_META_KEY = 'tasks_store_meta'

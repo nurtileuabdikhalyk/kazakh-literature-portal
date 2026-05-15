@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue'
 import * as XLSX from 'xlsx'
 
-const EXCEL_PATH = '/src/assets/datas/Sabaqtar_MB.xlsx'
+const EXCEL_PATH = '/data/Sabaqtar_MB.xlsx'
 const LS_KEY      = 'lessons_store_v1'
 const LS_META_KEY = 'lessons_store_meta'
 
