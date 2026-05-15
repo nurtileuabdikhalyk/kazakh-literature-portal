@@ -52,16 +52,16 @@
               </ul>
 
               <!-- CTA buttons -->
-              <div class="slide-cta">
-                <button class="cta-primary" @click="openSlide(slide)">
-                  <i :class="'pi ' + (slide.type === 'video' ? 'pi-play' : 'pi-arrow-right')"/>
-                  {{ slide.cta || 'Толығырақ' }}
-                </button>
-                <button class="cta-secondary">
-                  <i class="pi pi-bookmark"/>
-                  Сақтау
-                </button>
-              </div>
+<!--              <div class="slide-cta">-->
+<!--                <button class="cta-primary" @click="openSlide(slide)">-->
+<!--                  <i :class="'pi ' + (slide.type === 'video' ? 'pi-play' : 'pi-arrow-right')"/>-->
+<!--                  {{ slide.cta || 'Толығырақ' }}-->
+<!--                </button>-->
+<!--                <button class="cta-secondary">-->
+<!--                  <i class="pi pi-bookmark"/>-->
+<!--                  Сақтау-->
+<!--                </button>-->
+<!--              </div>-->
 
             </div>
           </div>
