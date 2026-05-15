@@ -19,16 +19,17 @@
 
       <!-- ── NAV (desktop) ─────────────────────────── -->
       <nav class="nav-links" aria-label="Басты мәзір">
-        <router-link
+        <a
             v-for="item in navItems"
             :key="item.path"
-            :to="item.path"
             class="nav-link"
             :class="{ active: isActive(item) }"
+            :href="item.path"
+            @click.prevent="navigate(item)"
         >
           <i :class="'pi ' + item.icon"/>
           {{ item.label }}
-        </router-link>
+        </a>
       </nav>
 
       <!-- ── RIGHT ACTIONS ─────────────────────────── -->
@@ -65,16 +66,16 @@
     <!-- ── MOBILE MENU ───────────────────────────── -->
     <transition name="mobile-drop">
       <div v-if="mobileOpen" class="mobile-menu">
-        <router-link
+        <a
             v-for="item in navItems"
             :key="'m-'+item.path"
-            :to="item.path"
             class="mobile-link"
-            @click="mobileOpen = false"
+            :href="item.path"
+            @click.prevent="navigate(item, true)"
         >
           <i :class="'pi ' + item.icon"/>
           {{ item.label }}
-        </router-link>
+        </a>
         <div class="mobile-sep"/>
         <template v-if="isLoggedIn">
           <router-link
@@ -115,17 +116,50 @@ const isScrolled  = ref(false)
 const mobileOpen  = ref(false)
 
 const navItems = [
-  { label: 'Басты',      path: '/',            icon: 'pi-home'         },
-  { label: 'Сабақтар',   path: '/lessons',     icon: 'pi-book'         },
-  { label: 'Аудио',      path: '/audio',       icon: 'pi-headphones'   },
-  { label: 'Тапсырмалар',path: '/interactive', icon: 'pi-list-check'   },
+  { label: 'Басты',       path: '/',             icon: 'pi-home',       hash: ''            },
+  { label: 'Сабақтар',    path: '/lessons',      icon: 'pi-book',       hash: ''            },
+  { label: 'Аудио',       path: '/#audio',       icon: 'pi-headphones', hash: 'audio'       },
+  { label: 'Тапсырмалар', path: '/#interactive', icon: 'pi-list-check', hash: 'interactive' },
 ]
 
 const firstName = computed(() => currentUser.value?.name?.split(' ')[0] || '')
 
 function isActive(item) {
-  if (item.path === '/') return route.path === '/'
+  if (item.hash) return route.hash === '#' + item.hash
+  if (item.path === '/') return route.path === '/' && !route.hash
   return route.path.startsWith(item.path)
+}
+
+// Hash anchor болса — section-ға scroll, болмаса router navigate
+async function navigate(item, closeMobile = false) {
+  if (closeMobile) mobileOpen.value = false
+
+  if (item.hash) {
+    if (route.path !== '/') {
+      // Басқа бетте — алдымен / бетіне өт
+      await router.push({ path: '/', hash: '#' + item.hash })
+      setTimeout(() => scrollToSection(item.hash), 350)
+    } else {
+      // Сол / бетінде — тікелей scroll (hash бірдей болса да жұмыс жасайды)
+      scrollToSection(item.hash)
+      // Hash URL-ді жаңарту (watch триггер болу үшін force)
+      if (route.hash === '#' + item.hash) {
+        // Бірдей hash — watcher іске қосылмайды, тікелей scroll
+        // (жоғарыда scrollToSection шақырылды)
+      } else {
+        router.replace({ hash: '#' + item.hash })
+      }
+    }
+  } else {
+    router.push(item.path)
+  }
+}
+
+function scrollToSection(id) {
+  const el = document.getElementById(id)
+  if (!el) return
+  const top = el.getBoundingClientRect().top + window.scrollY - 70
+  window.scrollTo({ top, behavior: 'smooth' })
 }
 
 function doLogout() {
@@ -167,6 +201,7 @@ onBeforeUnmount(()=> window.removeEventListener('scroll', onScroll))
   padding: 0 1.5rem;
   height: 58px;
   display: flex; align-items: center; gap: 1.5rem;
+  position: relative;
 }
 
 /* ── Logo ── */
@@ -190,7 +225,7 @@ onBeforeUnmount(()=> window.removeEventListener('scroll', onScroll))
 /* ── Nav ── */
 .nav-links {
   display: flex; align-items: center; gap: .15rem;
-  flex: 1;
+  position: absolute; left: 50%; transform: translateX(-50%);
 }
 .nav-link {
   display: flex; align-items: center; gap: .35rem;

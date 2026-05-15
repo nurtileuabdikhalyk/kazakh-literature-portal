@@ -18,9 +18,14 @@
 
       <!-- Center: nav links -->
       <nav class="footer-nav">
-        <router-link v-for="item in links" :key="item.path" :to="item.path" class="footer-link">
+        <a
+            v-for="item in links" :key="item.label"
+            class="footer-link"
+            :href="item.path"
+            @click.prevent="navigate(item)"
+        >
           {{ item.label }}
-        </router-link>
+        </a>
       </nav>
 
       <!-- Right: copyright -->
@@ -35,15 +40,44 @@
 </template>
 
 <script setup>
-const year = new Date().getFullYear()
+import { useRoute, useRouter } from 'vue-router'
+
+const route  = useRoute()
+const router = useRouter()
+const year   = new Date().getFullYear()
 
 const links = [
-  { label: 'Басты',       path: '/'            },
-  { label: 'Сабақтар',    path: '/lessons'     },
-  { label: 'Тапсырмалар', path: '/interactive' },
-  { label: 'Аудио',       path: '/audio'       },
-  { label: 'Кіру',        path: '/login'       },
+  { label: 'Басты',       path: '/',             hash: '' },
+  { label: 'Сабақтар',    path: '/lessons',      hash: '' },
+  { label: 'Аудио',       path: '/#audio',       hash: 'audio' },
+  { label: 'Тапсырмалар', path: '/#interactive', hash: 'interactive' },
+  { label: 'Кіру',        path: '/login',        hash: '' },
 ]
+
+async function navigate(item) {
+  if (item.hash) {
+    if (route.path !== '/') {
+      await router.push({ path: '/', hash: '#' + item.hash })
+      setTimeout(() => scrollTo(item.hash), 350)
+    } else {
+      // Hash бірдей болса да — тікелей scroll жасаймыз
+      scrollTo(item.hash)
+      if (route.hash !== '#' + item.hash) {
+        router.replace({ hash: '#' + item.hash })
+      }
+    }
+  } else {
+    router.push(item.path)
+  }
+}
+
+function scrollTo(id) {
+  const el = document.getElementById(id)
+  if (el) {
+    const top = el.getBoundingClientRect().top + window.scrollY - 70
+    window.scrollTo({ top, behavior: 'smooth' })
+  }
+}
 </script>
 
 <style scoped>
