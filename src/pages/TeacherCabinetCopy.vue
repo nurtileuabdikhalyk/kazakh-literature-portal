@@ -606,7 +606,7 @@
 import {ref, computed, onMounted, reactive} from 'vue'
 import {useRouter} from 'vue-router'
 import {useAuth} from '@/composables/useAuth'
-import {useLessonsStore} from '@/composables/useLessonsStore'
+import {useLessonsStoreCopy} from '@/composables/useLessonsStoreCopy.js'
 import {useTasksStore} from '@/composables/useTasksStore'
 import {useCommentsStore} from '@/composables/useCommentsStore'
 import {useResultsStore} from '@/composables/useResultsStore'
@@ -625,7 +625,7 @@ const {
   reloadFromExcel: storeReload,
   deleteLesson: storeDelete,
   exportToExcel: storeExportToExcel,
-} = useLessonsStore()
+} = useLessonsStoreCopy()
 
 // ── Constants ─────────────────────────────────────────
 const LESSON_TYPES = [

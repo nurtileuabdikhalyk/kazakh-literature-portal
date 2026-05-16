@@ -1,331 +1,214 @@
 
 import { ref, computed } from 'vue'
-import * as XLSX from 'xlsx'
-const EXCEL_PATH = '/data/Тапсырмалар_Мәліметтер_Базасы.xlsx'
+import { supabase } from './useSupabase'
 
-const LS_KEY      = 'tasks_store_v1'
-const LS_META_KEY = 'tasks_store_meta'
-
-// ── Singleton state ───────────────────────────────────
-const tasks       = ref([])
+// ── Singleton ─────────────────────────────────────────
+const tasks       = ref([])   // flat questions list (UI үшін)
+const quizzes     = ref([])   // grouped by quiz
 const loading     = ref(false)
 const error       = ref('')
 const initialized = ref(false)
 
-// ── Sheet config ──────────────────────────────────────
-// MCQ:     col1=№ col2=text col3=A col4=B col5=C col6=D col7=answer col8=topic col9=level col10=explanation
-// TF:      col1=№ col2=text col3=answer col4=topic col5=level col6=explanation
-// Fill:    col1=№ col2=text col3=answers col4=topic col5=level col6=explanation
-// Match:   col1=groupId col2=title col3=left col4=right col5=topic col6=level col7=explanation
-
-// ── Parse functions ───────────────────────────────────
-function parseMCQ(rows) {
-    return rows
-        .filter(r => String(r[2] || '').trim())
-        .map((r, i) => ({
-            id:          `mcq_${Number(r[1]) || i + 1}_${Date.now()}`,
-            type:        'mcq',
-            numId:       Number(r[1]) || i + 1,
-            text:        String(r[2]  || ''),
-            optionA:     String(r[3]  || ''),
-            optionB:     String(r[4]  || ''),
-            optionC:     String(r[5]  || ''),
-            optionD:     String(r[6]  || ''),
-            answer:      Number(r[7]  || 1),   // 1-based
-            topic:       String(r[8]  || ''),
-            level:       String(r[9]  || 'Оңай'),
-            explanation: String(r[10] || ''),
-            createdAt:   new Date().toISOString(),
-        }))
-}
-
-function parseTF(rows) {
-    return rows
-        .filter(r => String(r[2] || '').trim())
-        .map((r, i) => ({
-            id:          `tf_${Number(r[1]) || i + 1}_${Date.now()}`,
-            type:        'truefalse',
-            numId:       Number(r[1]) || i + 1,
-            text:        String(r[2]  || ''),
-            answer:      r[3] === true || String(r[3]).toUpperCase() === 'TRUE',
-            topic:       String(r[4]  || ''),
-            level:       String(r[5]  || 'Оңай'),
-            explanation: String(r[6]  || ''),
-            createdAt:   new Date().toISOString(),
-        }))
-}
-
-function parseFill(rows) {
-    return rows
-        .filter(r => String(r[2] || '').trim() && String(r[3] || '').trim())
-        .map((r, i) => {
-            const rawText = String(r[2] || '')
-            const answers = String(r[3] || '').split(',').map(s => s.trim()).filter(Boolean)
-            const segments = rawText.split('___')
-            const parts = []
-            segments.forEach((seg, si) => {
-                if (seg) parts.push({ type: 'text', val: seg })
-                if (si < segments.length - 1) parts.push({ type: 'blank', idx: si })
-            })
-            return {
-                id:          `fill_${Number(r[1]) || i + 1}_${Date.now()}`,
-                type:        'fillblank',
-                numId:       Number(r[1]) || i + 1,
-                text:        rawText,
-                parts,
-                answers,
-                topic:       String(r[4]  || ''),
-                level:       String(r[5]  || 'Орташа'),
-                explanation: String(r[6]  || ''),
-                createdAt:   new Date().toISOString(),
-            }
-        })
-}
-
-function parseMatch(rows) {
-    // Group by groupId (col1)
-    const groups = {}
-    rows
-        .filter(r => String(r[1] || '').trim() && String(r[3] || '').trim() && String(r[4] || '').trim())
-        .forEach((r, i) => {
-            const gid = String(r[1])
-            if (!groups[gid]) {
-                groups[gid] = {
-                    id:          `match_${gid}_${Date.now() + i}`,
-                    type:        'match',
-                    numId:       Number(gid) || i + 1,
-                    title:       String(r[2] || `Сәйкестендіру ${gid}`),
-                    pairs:       [],
-                    topic:       String(r[5] || ''),
-                    level:       String(r[6] || 'Орташа'),
-                    explanation: String(r[7] || ''),
-                    createdAt:   new Date().toISOString(),
-                }
-            }
-            groups[gid].pairs.push({
-                left:  String(r[3] || ''),
-                right: String(r[4] || ''),
-            })
-        })
-    return Object.values(groups).filter(g => g.pairs.length >= 2)
-}
-
-// ── localStorage helpers ──────────────────────────────
-function saveToLS(data) {
-    try {
-        localStorage.setItem(LS_KEY, JSON.stringify(data))
-        localStorage.setItem(LS_META_KEY, JSON.stringify({
-            savedAt: new Date().toISOString(),
-            count:   data.length,
-            mcq:     data.filter(t => t.type === 'mcq').length,
-            tf:      data.filter(t => t.type === 'truefalse').length,
-            fill:    data.filter(t => t.type === 'fillblank').length,
-            match:   data.filter(t => t.type === 'match').length,
-        }))
-    } catch (e) {
-        console.warn('[TasksStore] localStorage write error:', e)
-    }
-}
-
-function loadFromLS() {
-    try {
-        const raw = localStorage.getItem(LS_KEY)
-        return raw ? JSON.parse(raw) : null
-    } catch { return null }
-}
-
-export function getLSTasksMeta() {
-    try {
-        const raw = localStorage.getItem(LS_META_KEY)
-        return raw ? JSON.parse(raw) : null
-    } catch { return null }
-}
-
-// ── Read from Excel ───────────────────────────────────
-async function fetchFromExcel() {
-    const res = await fetch(EXCEL_PATH)
-    if (!res.ok) throw new Error(`Excel файл табылмады: ${EXCEL_PATH} (${res.status})`)
-    const buf = await res.arrayBuffer()
-    const wb  = XLSX.read(buf, { type: 'array', cellDates: true })
-
-    const data = []
-    const sheetParsers = {
-        '📝 Тест':       parseMCQ,
-        '✅ Дурыс-Бурыс':    parseTF,
-        '✍️ Бос орын':       parseFill,
-        '🔗 Сәйкестендіру':  parseMatch,
-    }
-
-    Object.entries(sheetParsers).forEach(([sheet, parser]) => {
-        if (!wb.SheetNames.includes(sheet)) return
-        const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheet], { range: 5, header: 1, defval: '' })
-        data.push(...parser(rows))
-    })
-
-    return data
-}
-
-// ── PUBLIC COMPOSABLE ─────────────────────────────────
 export function useTasksStore() {
 
+    // ── FETCH — барлық сұрақтарды жүктеу ─────────────────
     async function init(forceReload = false) {
         if (initialized.value && !forceReload) return
         loading.value = true
         error.value   = ''
-
-        if (!forceReload) {
-            const cached = loadFromLS()
-            if (cached && cached.length > 0) {
-                tasks.value       = cached
-                initialized.value = true
-                loading.value     = false
-                return
-            }
-        }
-
         try {
-            const data        = await fetchFromExcel()
-            tasks.value       = data
+            // Quizzes
+            const { data: qzData, error: qzErr } = await supabase
+                .from('quizzes')
+                .select('*')
+                .order('id')
+            if (qzErr) throw qzErr
+
+            // Questions
+            const { data: qsData, error: qsErr } = await supabase
+                .from('questions')
+                .select('*')
+                .order('id')
+            if (qsErr) throw qsErr
+
+            quizzes.value     = qzData || []
+            tasks.value       = (qsData || []).map(mapQuestion)
             initialized.value = true
-            saveToLS(data)
-        } catch (e) {
-            error.value = e.message
-            const cached = loadFromLS()
-            if (cached) { tasks.value = cached; initialized.value = true }
+        } catch(e) {
+            error.value = e.message || 'Supabase қосылу қатесі'
+            console.error('[TasksStore]', e)
         } finally {
             loading.value = false
         }
     }
 
-    async function reloadFromExcel() { await init(true) }
-
-    function clearCache() {
-        localStorage.removeItem(LS_KEY)
-        localStorage.removeItem(LS_META_KEY)
-        tasks.value       = []
-        initialized.value = false
-    }
-
-    // ── CREATE ──────────────────────────────────────────
-    function addTask(data) {
-        const sameType = tasks.value.filter(t => t.type === data.type)
-        const maxId    = sameType.length ? Math.max(...sameType.map(t => t.numId || 0)) : 0
-        const numId    = maxId + 1
-        const newTask  = {
-            ...data,
-            id:        `${data.type}_${numId}_${Date.now()}`,
-            numId,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
+    // ── MAP Supabase row → app format ─────────────────────
+    function mapQuestion(r) {
+        const base = {
+            id:          r.id,
+            quiz_id:     r.quiz_id,
+            type:        r.type,
+            text:        r.text        || '',
+            topic:       r.topic       || '',
+            explanation: r.explanation || '',
         }
-        // Rebuild parts for fillblank
-        if (newTask.type === 'fillblank' && newTask.text) {
-            const segs = newTask.text.split('___')
+        if (r.type === 'mcq') return {
+            ...base,
+            optionA:      r.option_a      || '',
+            optionB:      r.option_b      || '',
+            optionC:      r.option_c      || '',
+            optionD:      r.option_d      || '',
+            answer:       r.answer_index  || 1,
+        }
+        if (r.type === 'truefalse') return {
+            ...base,
+            answer: r.answer_bool ?? true,
+        }
+        if (r.type === 'fillblank') {
+            const correctBlanks = (r.blanks_answer || '').split(',').map(s => s.trim()).filter(Boolean)
+            const segs  = (r.blanks_text || r.text || '').split('___')
             const parts = []
-            segs.forEach((seg, i) => {
-                if (seg) parts.push({ type: 'text', val: seg })
-                if (i < segs.length - 1) parts.push({ type: 'blank', idx: i })
+            segs.forEach((s, i) => {
+                if (s) parts.push({ type:'text', val:s })
+                if (i < segs.length-1) parts.push({ type:'blank', idx:i })
             })
-            newTask.parts = parts
+            return { ...base, text: r.blanks_text || r.text, parts, correctBlanks, answers: correctBlanks }
         }
-        tasks.value = [newTask, ...tasks.value]
-        saveToLS(tasks.value)
-        return newTask
-    }
-
-    // ── UPDATE ──────────────────────────────────────────
-    function updateTask(id, changes) {
-        const idx = tasks.value.findIndex(t => t.id === id)
-        if (idx === -1) return false
-        const updated = { ...tasks.value[idx], ...changes, id, updatedAt: new Date().toISOString() }
-        // Rebuild parts if text changed
-        if (updated.type === 'fillblank' && changes.text) {
-            const segs = updated.text.split('___')
-            const parts = []
-            segs.forEach((seg, i) => {
-                if (seg) parts.push({ type: 'text', val: seg })
-                if (i < segs.length - 1) parts.push({ type: 'blank', idx: i })
-            })
-            updated.parts = parts
+        if (r.type === 'match') {
+            const pairs = Array.isArray(r.match_pairs)
+                ? r.match_pairs
+                : (r.match_pairs ? JSON.parse(r.match_pairs) : [])
+            return { ...base, title: r.text, matchTitle: r.text, pairs }
         }
-        tasks.value[idx] = updated
-        tasks.value = [...tasks.value]
-        saveToLS(tasks.value)
-        return true
+        return base
     }
 
-    // ── DELETE ──────────────────────────────────────────
-    function deleteTask(id) {
-        const before = tasks.value.length
-        tasks.value  = tasks.value.filter(t => t.id !== id)
-        if (tasks.value.length !== before) { saveToLS(tasks.value); return true }
-        return false
+    // ── ADD TASK (сұрақ + quiz жасау) ────────────────────
+    // Мұғалім жаңа тапсырма жасағанда:
+    //   1. Сол topic+level quiz бар ма? → бар болса қолдан
+    //   2. Жоқ болса → жаңа quiz жасайды
+    //   3. Question жасайды → quiz-ға байланыстырады
+    async function addTask(data) {
+        // 1. Quiz табу немесе жасау
+        const quizId = await ensureQuiz(data.topic, data.level)
+
+        // 2. Question жасау
+        const row = taskToRow(data, quizId)
+        const { data: q, error: err } = await supabase
+            .from('questions')
+            .insert([row])
+            .select()
+            .single()
+        if (err) throw err
+
+        const mapped = mapQuestion(q)
+        tasks.value = [mapped, ...tasks.value]
+        return mapped
     }
 
-    // ── GETTERS ─────────────────────────────────────────
-    const getById = (id) => tasks.value.find(t => t.id === id) || null
+    // ── UPDATE TASK ───────────────────────────────────────
+    async function updateTask(id, data) {
+        const quizId = await ensureQuiz(data.topic, data.level)
+        const row    = taskToRow(data, quizId)
+        const { data: q, error: err } = await supabase
+            .from('questions')
+            .update(row)
+            .eq('id', id)
+            .select()
+            .single()
+        if (err) throw err
 
+        const mapped = mapQuestion(q)
+        tasks.value  = tasks.value.map(t => t.id === id ? mapped : t)
+        return mapped
+    }
+
+    // ── DELETE TASK ───────────────────────────────────────
+    async function deleteTask(id) {
+        const { error: err } = await supabase.from('questions').delete().eq('id', id)
+        if (err) throw err
+        tasks.value = tasks.value.filter(t => t.id !== id)
+    }
+
+    // ── GET BY ID ─────────────────────────────────────────
+    function getById(id) {
+        return tasks.value.find(t => String(t.id) === String(id)) || null
+    }
+
+    // ── ensureQuiz — topic+level бойынша quiz табу/жасау ──
+    async function ensureQuiz(topic, level) {
+        // Бар quiz іздейміз
+        const existing = quizzes.value.find(q => q.topic === topic && q.level === level)
+        if (existing) return existing.id
+
+        // Жоқ — жаңасын жасаймыз
+        const { data: q, error: err } = await supabase
+            .from('quizzes')
+            .insert([{ topic, level, time_min: 10 }])
+            .select()
+            .single()
+        if (err) throw err
+        quizzes.value = [...quizzes.value, q]
+        return q.id
+    }
+
+    // ── app format → Supabase questions row ───────────────
+    function taskToRow(d, quizId) {
+        const base = {
+            quiz_id:     quizId,
+            type:        d.type        || 'mcq',
+            text:        d.text        || d.title || '',
+            topic:       d.topic       || '',
+            explanation: d.explanation || '',
+        }
+        if (d.type === 'mcq') return {
+            ...base,
+            option_a:     d.optionA     || '',
+            option_b:     d.optionB     || '',
+            option_c:     d.optionC     || '',
+            option_d:     d.optionD     || '',
+            answer_index: d.answer      || 1,
+        }
+        if (d.type === 'truefalse') return {
+            ...base,
+            answer_bool: d.answer === true || d.answer === 'true',
+        }
+        if (d.type === 'fillblank') {
+            const answers = Array.isArray(d.answers)
+                ? d.answers
+                : (d.answersRaw || '').split(',').map(s => s.trim()).filter(Boolean)
+            return {
+                ...base,
+                blanks_text:   d.text || '',
+                blanks_answer: answers.join(','),
+            }
+        }
+        if (d.type === 'match') {
+            const pairs = (d.pairs || []).filter(p => p.left?.trim() && p.right?.trim())
+            return {
+                ...base,
+                text:        d.title || d.text || '',
+                match_pairs: JSON.stringify(pairs),
+            }
+        }
+        return base
+    }
+
+    // ── Computed stats ────────────────────────────────────
     const stats = computed(() => ({
         total: tasks.value.length,
         mcq:   tasks.value.filter(t => t.type === 'mcq').length,
         tf:    tasks.value.filter(t => t.type === 'truefalse').length,
         fill:  tasks.value.filter(t => t.type === 'fillblank').length,
         match: tasks.value.filter(t => t.type === 'match').length,
-        topics:[...new Set(tasks.value.map(t => t.topic).filter(Boolean))],
     }))
 
-    // ── EXPORT to Excel ──────────────────────────────────
-    function exportToExcel() {
-        const wb = XLSX.utils.book_new()
-
-        // MCQ sheet
-        const mcqHeader = ['', '№', 'Сұрақ мәтіні', 'Нұсқа A', 'Нұсқа B', 'Нұсқа C', 'Нұсқа D', 'Жауап', 'Тақырып', 'Деңгей', 'Түсіндірме']
-        const mcqRows = tasks.value.filter(t => t.type === 'mcq').map((t, i) => [
-            '', i + 1, t.text, t.optionA, t.optionB, t.optionC, t.optionD,
-            t.answer, t.topic, t.level, t.explanation,
-        ])
-        const mcqSheet = XLSX.utils.aoa_to_sheet([[], [], [], [], mcqHeader, ...mcqRows])
-        mcqSheet['!cols'] = [{wch:3},{wch:5},{wch:40},{wch:26},{wch:26},{wch:26},{wch:26},{wch:8},{wch:18},{wch:14},{wch:32}]
-        XLSX.utils.book_append_sheet(wb, mcqSheet, '📝 Тест')
-
-        // TF sheet
-        const tfHeader = ['', '№', 'Тұжырым мәтіні', 'Жауап', 'Тақырып', 'Деңгей', 'Түсіндірме']
-        const tfRows = tasks.value.filter(t => t.type === 'truefalse').map((t, i) => [
-            '', i + 1, t.text, t.answer ? 'TRUE' : 'FALSE', t.topic, t.level, t.explanation,
-        ])
-        const tfSheet = XLSX.utils.aoa_to_sheet([[], [], [], [], tfHeader, ...tfRows])
-        tfSheet['!cols'] = [{wch:3},{wch:5},{wch:55},{wch:10},{wch:18},{wch:14},{wch:32}]
-        XLSX.utils.book_append_sheet(wb, tfSheet, '✅ Дурыс-Бурыс')
-
-        // Fill sheet
-        const fillHeader = ['', '№', 'Мәтін (бос орын = ___)', 'Дұрыс жауаптар (үтірмен)', 'Тақырып', 'Деңгей', 'Түсіндірме']
-        const fillRows = tasks.value.filter(t => t.type === 'fillblank').map((t, i) => [
-            '', i + 1, t.text, t.answers?.join(', ') || '', t.topic, t.level, t.explanation,
-        ])
-        const fillSheet = XLSX.utils.aoa_to_sheet([[], [], [], [], fillHeader, ...fillRows])
-        fillSheet['!cols'] = [{wch:3},{wch:5},{wch:50},{wch:30},{wch:18},{wch:14},{wch:32}]
-        XLSX.utils.book_append_sheet(wb, fillSheet, '✍️ Бос орын')
-
-        // Match sheet
-        const matchHeader = ['', 'Топ №', 'Тапсырма атауы', 'Сол баған', 'Оң баған', 'Тақырып', 'Деңгей', 'Түсіндірме']
-        const matchRows = []
-        tasks.value.filter(t => t.type === 'match').forEach((t, gi) => {
-            t.pairs?.forEach(pair => {
-                matchRows.push(['', gi + 1, t.title, pair.left, pair.right, t.topic, t.level, t.explanation])
-            })
-            matchRows.push([]) // empty row between groups
-        })
-        const matchSheet = XLSX.utils.aoa_to_sheet([[], [], [], [], matchHeader, ...matchRows])
-        matchSheet['!cols'] = [{wch:3},{wch:8},{wch:26},{wch:32},{wch:32},{wch:18},{wch:14},{wch:32}]
-        XLSX.utils.book_append_sheet(wb, matchSheet, '🔗 Сәйкестендіру')
-
-        XLSX.writeFile(wb, 'Тапсырмалар_Мәліметтер_Базасы.xlsx')
-    }
-
     return {
-        tasks, loading, error, initialized, stats,
-        init, reloadFromExcel, clearCache,
-        addTask, updateTask, deleteTask, getById,
-        exportToExcel, getLSTasksMeta,
+        tasks, quizzes, loading, error, initialized, stats,
+        init,
+        addTask,
+        updateTask,
+        deleteTask,
+        getById,
     }
 }

@@ -17,13 +17,6 @@ const routes = [
         meta: {guestOnly: true},  // Кірген адам /login-ге баса алмайды
     },
     {
-        path: '/books/:id/read',
-        name: 'book-reader',
-        component: () =>
-            import( "@/pages/BookReader.vue"),
-        meta: {hideHeader: true, hideFooter: true},
-    },
-    {
         path: '/lessons/:type/:id',
         name: 'lesson-detail',
         component: () =>

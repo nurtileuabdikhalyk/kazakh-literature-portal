@@ -5,6 +5,7 @@ import AudiovisualSection from "@/components/AudiovisualSection.vue";
 import InteractiveTasks from "@/components/InteractiveTasks.vue";
 import {onMounted, watch} from 'vue'
 import { useRoute }          from 'vue-router'
+import Supabasetasks from "@/components/Supabasetasks.vue";
 
 
 const route = useRoute()
@@ -39,7 +40,8 @@ watch(() => route.hash, (hash) => {
     <AudiovisualSection />
   </section>
   <section id="interactive">
-    <InteractiveTasks />
+    <Supabasetasks />
+<!--    <InteractiveTasks />-->
   </section>
 <!--  <CreativeTasks />-->
 </template>

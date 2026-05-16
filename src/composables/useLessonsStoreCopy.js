@@ -96,7 +96,7 @@ async function fetchFromExcel() {
 }
 
 // ── PUBLIC COMPOSABLE ─────────────────────────────────
-export function useLessonsStore() {
+export function useLessonsStoreCopy() {
 
     // Initialize — called once on app start or first use
     async function init(forceReload = false) {

@@ -17,7 +17,8 @@ export default defineConfig({
   server: {
     host: true,
     allowedHosts: [
-      'anagram-clammy-disaster.ngrok-free.dev'
+      'anagram-clammy-disaster.ngrok-free.dev',
+      'deceiving-repeated-hermit.ngrok-free.dev',
     ]
   }
 })
