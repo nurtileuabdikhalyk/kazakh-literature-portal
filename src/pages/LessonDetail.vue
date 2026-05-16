@@ -333,7 +333,6 @@
               <i class="pi pi-database sb-db-icon"/>
               <div>
                 <span class="sb-db-title">Дерекқор көзі</span>
-                <span class="sb-db-file">Sabaqtar_MB.xlsx</span>
                 <span class="sb-db-desc">Сабақтар · Тараулар · Материалдар · Пікірлер</span>
               </div>
             </div>

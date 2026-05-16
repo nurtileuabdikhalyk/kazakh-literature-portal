@@ -156,10 +156,7 @@
               </span>            </span>
             <span class="ssr-item video"><i class="pi pi-play-circle"/> {{ storeStats.video }} видео</span>
             <span class="ssr-item pdf"><i class="pi pi-file-pdf"/> {{ storeStats.pdf }} PDF</span>
-            <span class="ssr-source">
-              <i class="pi pi-info-circle"/>
-              localStorage-тен · Excel-ден бір рет оқылды
-            </span>
+
           </div>
 
           <!-- Loading -->
@@ -777,10 +774,6 @@
             <strong>«{{ deleteDialog.lesson?.title }}»</strong><br/>
             сабағын өшіргіңіз келе ме?
           </p>
-          <p class="del-modal-hint">
-            <i class="pi pi-info-circle"/>
-            Деректер <strong>localStorage</strong>-тен өшіріледі. Excel өзгермейді.
-          </p>
           <div class="del-modal-actions">
             <button class="del-btn-confirm" @click="doDelete">
               <i class="pi pi-trash"/> Өшіру
@@ -805,10 +798,6 @@
           <p class="del-modal-body">
             <strong>«{{ deleteTaskDialog.task?.text || deleteTaskDialog.task?.title }}»</strong><br/>
             тапсырмасын өшіргіңіз келе ме?
-          </p>
-          <p class="del-modal-hint">
-            <i class="pi pi-info-circle"/>
-            Деректер <strong>localStorage</strong>-тен өшіріледі. Excel өзгермейді.
           </p>
           <div class="del-modal-actions">
             <button class="del-btn-confirm" @click="doTaskDelete">
@@ -835,10 +824,6 @@
             <strong>{{ deleteResultDialog.result?.studentName }}</strong> —
             <em>{{ deleteResultDialog.result?.taskTitle }}</em><br/>
             нәтижесін өшіргіңіз келе ме?
-          </p>
-          <p class="del-modal-hint">
-            <i class="pi pi-info-circle"/>
-            <strong>localStorage</strong>-тен өшіріледі. Excel өзгермейді.
           </p>
           <div class="del-modal-actions">
             <button class="del-btn-confirm" @click="doDeleteResult">

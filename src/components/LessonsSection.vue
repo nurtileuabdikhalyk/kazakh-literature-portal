@@ -38,7 +38,6 @@
           <span class="btype video">{{ countByType('video') }} видео</span>
           <span class="btype pdf">{{ countByType('pdf') }} PDF</span>
         </span>
-        <span class="db-file">📁 Sabaqtar_MB.xlsx</span>
       </div>
 
       <!-- Type tabs -->
