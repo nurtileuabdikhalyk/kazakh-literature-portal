@@ -1,157 +1,3 @@
-
-<script setup>
-import { ref, computed, onMounted, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import * as XLSX from 'xlsx'
-import VideoPlayer from "@/components/VideoPlayer.vue";
-import PdfViewer from "@/components/PdfViewer.vue";
-import KonspektViewer from "@/components/KonspektViewer.vue";
-
-// ─── Import viewer components ─────────────────────────
-
-const route  = useRoute()
-const router = useRouter()
-
-const EXCEL_PATH = '/data/Sabaqtar_MB.xlsx'
-
-// ─── State ────────────────────────────────────────────
-const status   = ref('loading')
-const errorMsg = ref('')
-const lesson   = ref(null)
-const chapters = ref([])
-const materials= ref([])
-const comments = ref([])
-
-const activeTab    = ref('content')
-const activeCh     = ref(1)
-const saved        = ref(false)
-const notes        = ref('')
-const myComment    = ref('')
-const myRating     = ref(0)
-const videoProgress= ref(0)
-
-// ─── Init ─────────────────────────────────────────────
-onMounted(() => init())
-watch(() => [route.params.type, route.params.id], () => init())
-
-async function init() {
-  const type = String(route.params.type || 'video')
-  const id   = Number(route.params.id   || 1)
-  status.value  = 'loading'
-  errorMsg.value = ''
-  lesson.value   = null
-  chapters.value = []
-  materials.value= []
-  comments.value = []
-  notes.value    = localStorage.getItem(`lesson_notes_${type}_${id}`) || ''
-  await loadFromExcel(type, id)
-}
-
-async function loadFromExcel(type, id) {
-  try {
-    const res = await fetch(EXCEL_PATH)
-    if (!res.ok) throw new Error(`Excel файл жүктелмеді (${res.status}): ${EXCEL_PATH}`)
-    const buf = await res.arrayBuffer()
-    const wb  = XLSX.read(buf, { type: 'array' })
-
-    // 1. Lesson
-    const sheetName = { video:'🎬 Видео сабақтар', text:'📄 Конспекттер', pdf:'📑 PDF материалдар' }[type]
-    if (!sheetName) throw new Error(`Белгісіз тип: "${type}"`)
-    if (!wb.SheetNames.includes(sheetName)) throw new Error(`Excel-де «${sheetName}» беті жоқ`)
-
-    const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { range: 5, header: 1, defval: '' })
-    const row  = rows.find(r => Number(r[1]) === id)
-    if (!row) { status.value = 'notfound'; return }
-
-    lesson.value = {
-      id, type,
-      title:       String(row[2]  || ''),
-      author:      String(row[3]  || ''),
-      fileUrl:     String(row[4]  || ''),
-      cover:       String(row[5]  || defaultCover(type)),
-      duration:    String(row[6]  || ''),
-      level:       String(row[7]  || 'Орташа'),
-      topic:       String(row[8]  || ''),
-      category:    String(row[9]  || ''),
-      description: String(row[10] || ''),
-    }
-
-    // 2. Chapters
-    if (wb.SheetNames.includes('📚 Тараулар')) {
-      chapters.value = XLSX.utils.sheet_to_json(wb.Sheets['📚 Тараулар'], { range: 5, header: 1, defval: '' })
-          .filter(r => Number(r[1]) === id && String(r[2]) === type && String(r[3]).trim())
-          .map(r => ({ title: String(r[3]||''), time: String(r[4]||''), content: String(r[5]||''), fileUrl: String(r[6]||''), order: Number(r[7]||0) }))
-          .sort((a,b) => a.order - b.order)
-    }
-
-    // 3. Materials
-    if (wb.SheetNames.includes('📎 Материалдар')) {
-      materials.value = XLSX.utils.sheet_to_json(wb.Sheets['📎 Материалдар'], { range: 5, header: 1, defval: '' })
-          .filter(r => Number(r[1]) === id && String(r[2]) === type && String(r[3]).trim())
-          .map(r => ({ title: String(r[3]||''), fileType: String(r[4]||'pdf').toLowerCase(), size: String(r[5]||''), fileUrl: String(r[6]||''), order: Number(r[7]||0) }))
-          .sort((a,b) => a.order - b.order)
-    }
-
-    // 4. Comments
-    if (wb.SheetNames.includes('💬 Пікірлер')) {
-      comments.value = XLSX.utils.sheet_to_json(wb.Sheets['💬 Пікірлер'], { range: 5, header: 1, defval: '' })
-          .filter(r => Number(r[1]) === id && String(r[2]) === type && String(r[3]).trim())
-          .map(r => ({ author: String(r[3]||''), date: String(r[4]||''), rating: Number(r[5]||5), text: String(r[6]||''), order: Number(r[7]||0) }))
-          .sort((a,b) => a.order - b.order)
-    }
-
-    status.value = 'ready'
-  } catch (e) {
-    status.value   = 'error'
-    errorMsg.value = e.message
-    console.error('[LessonDetail]', e)
-  }
-}
-
-function defaultCover(t) {
-  return { video:'https://images.unsplash.com/photo-1476820865390-c52aeebb9891?w=900&q=80', text:'https://images.unsplash.com/photo-1455390582262-044cdead277a?w=900&q=80', pdf:'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=900&q=80' }[t]
-}
-
-// ─── Computed ─────────────────────────────────────────
-const avgRating = computed(() => !comments.value.length ? 0 : comments.value.reduce((s,c) => s+c.rating,0)/comments.value.length)
-const notesWordCount = computed(() => notes.value.trim() ? notes.value.trim().split(/\s+/).length : 0)
-
-const tabList = computed(() => [
-  { key:'content',   label:'Мазмұн',                                icon:'pi-play-circle' },
-  { key:'materials', label:`Материалдар (${materials.value.length})`, icon:'pi-folder'    },
-  { key:'notes',     label:'Конспект',                               icon:'pi-pencil'     },
-  { key:'comments',  label:`Пікірлер (${comments.value.length})`,    icon:'pi-comments'   },
-])
-
-const infoRows = computed(() => lesson.value ? [
-  { icon:'pi-clock',     label:'Ұзақтығы',    val: lesson.value.duration },
-  { icon:'pi-tag',       label:'Тақырып',     val: lesson.value.topic },
-  { icon:'pi-chart-bar', label:'Деңгей',      val: lesson.value.level },
-  { icon:'pi-folder',    label:'Санат',        val: lesson.value.category },
-  { icon:'pi-list',      label:'Тараулар',    val: chapters.value.length + ' бөлім' },
-  { icon:'pi-paperclip', label:'Материалдар', val: materials.value.length + ' файл' },
-  { icon:'pi-star',      label:'Рейтинг',     val: avgRating.value > 0 ? avgRating.value.toFixed(1)+' / 5' : '—' },
-] : [])
-
-// ─── Helpers ──────────────────────────────────────────
-function typeIcon(t)  { return { video:'pi-play-circle', text:'pi-file-edit', pdf:'pi-file-pdf' }[t] || 'pi-book' }
-function typeLabel(t) { return { video:'Видео сабақ', text:'Конспект', pdf:'PDF материал' }[t] || t }
-function matIcon(t)   { return { pdf:'pi-file-pdf', docx:'pi-file-word', link:'pi-link', mp4:'pi-video' }[t] || 'pi-file' }
-function lvlClass(l)  { return l === 'Оңай' ? 'lv-easy' : l === 'Жоғары' ? 'lv-hard' : 'lv-mid' }
-
-// ─── Actions ──────────────────────────────────────────
-function scrollToContent() {
-  document.getElementById('lesson-content-anchor')?.scrollIntoView({ behavior: 'smooth' })
-}
-function saveNotes() {
-  localStorage.setItem(`lesson_notes_${route.params.type}_${route.params.id}`, notes.value)
-}
-function submitComment() {
-  if (!myComment.value.trim()) return
-  comments.value.unshift({ author:'Сіз', date: new Date().toLocaleDateString('kk-KZ'), rating: myRating.value||5, text: myComment.value, order:0 })
-  myComment.value = ''; myRating.value = 0
-}
-</script>
 <template>
   <div class="lesson-detail-page">
 
@@ -316,12 +162,6 @@ function submitComment() {
                   :title="lesson.title"
               />
 
-              <!-- ─── KONSPEKT (TEXT) ──────────────── -->
-              <KonspektViewer
-                  v-else-if="lesson.type === 'text'"
-                  :src="lesson.fileUrl"
-                  :title="lesson.title"
-              />
 
               <!-- Chapters list -->
               <div v-if="chapters.length" class="chapters-panel">
@@ -389,12 +229,15 @@ function submitComment() {
             <!-- ══ TAB: ПІКІРЛЕР ══════════════════ -->
             <div v-show="activeTab === 'comments'" class="tab-panel">
               <div v-if="comments.length" class="comments-list">
-                <div v-for="c in comments" :key="c.order" class="comment-card">
-                  <div class="cc-ava">{{ c.author?.[0] || '?' }}</div>
+                <div v-for="c in comments" :key="c.id || c.order" class="comment-card">
+                  <div class="cc-ava" :class="{ 'ava-user': c.source === 'user' }">
+                    {{ c.author?.[0] || '?' }}
+                  </div>
                   <div class="cc-body">
                     <div class="cc-top">
                       <span class="cc-name">{{ c.author }}</span>
                       <span class="cc-date">{{ c.date }}</span>
+                      <span v-if="c.source === 'user'" class="cc-new-badge">Жаңа</span>
                     </div>
                     <div class="cc-stars">
                       <span v-for="i in 5" :key="i" class="cstar" :class="{ on: i <= c.rating }">★</span>
@@ -415,9 +258,12 @@ function submitComment() {
                   <span v-for="i in 5" :key="i" class="cf-star" :class="{ on: i <= myRating }" @click="myRating = i">★</span>
                 </div>
                 <textarea v-model="myComment" class="cf-ta" placeholder="Пікіріңізді жазыңыз…" rows="3"/>
-                <button class="btn-gold btn-sm" @click="submitComment">
-                  <i class="pi pi-send"/>Жіберу
+                <button class="btn-gold btn-sm" @click="submitComment" :disabled="!myComment.trim()">
+                  <i class="pi pi-send"/> Жіберу
                 </button>
+                <p class="cf-hint">
+                  <i class="pi pi-database"/> Пікір localStorage-ке сақталады
+                </p>
               </div>
             </div>
 
@@ -480,6 +326,215 @@ function submitComment() {
   </div>
 </template>
 
+<script setup>
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import * as XLSX from 'xlsx'
+import { useAuth } from '@/composables/useAuth'
+import VideoPlayer from "@/components/VideoPlayer.vue";
+import PdfViewer from "@/components/PdfViewer.vue";
+
+const { currentUser } = useAuth()
+
+// ─── Import viewer components ─────────────────────────
+
+const route  = useRoute()
+const router = useRouter()
+
+const EXCEL_PATH = '/data/Sabaqtar_MB.xlsx'
+
+// ─── State ────────────────────────────────────────────
+const status   = ref('loading')
+const errorMsg = ref('')
+const lesson   = ref(null)
+const chapters = ref([])
+const materials= ref([])
+const comments = ref([])
+
+const activeTab    = ref('content')
+const activeCh     = ref(1)
+const saved        = ref(false)
+const notes        = ref('')
+const myComment    = ref('')
+const myRating     = ref(0)
+const videoProgress= ref(0)
+
+// ─── Comments LS key ──────────────────────────────────
+function commentsKey(type, id) { return `lesson_comments_${type}_${id}` }
+
+function saveCommentsToLS(type, id, data) {
+  try { localStorage.setItem(commentsKey(type, id), JSON.stringify(data)) }
+  catch(e) { console.warn('[LessonDetail] LS write error', e) }
+}
+
+function loadCommentsFromLS(type, id) {
+  try {
+    const raw = localStorage.getItem(commentsKey(type, id))
+    return raw ? JSON.parse(raw) : null
+  } catch { return null }
+}
+
+// ─── Init ─────────────────────────────────────────────
+onMounted(() => init())
+watch(() => [route.params.type, route.params.id], () => init())
+
+async function init() {
+  const type = String(route.params.type || 'video')
+  const id   = Number(route.params.id   || 1)
+  status.value   = 'loading'
+  errorMsg.value = ''
+  lesson.value   = null
+  chapters.value = []
+  materials.value= []
+  comments.value = []
+  notes.value    = localStorage.getItem(`lesson_notes_${type}_${id}`) || ''
+  await loadFromExcel(type, id)
+}
+
+async function loadFromExcel(type, id) {
+  try {
+    const res = await fetch(EXCEL_PATH)
+    if (!res.ok) throw new Error(`Excel файл жүктелмеді (${res.status}): ${EXCEL_PATH}`)
+    const buf = await res.arrayBuffer()
+    const wb  = XLSX.read(buf, { type: 'array' })
+
+    // 1. Lesson
+    const sheetName = { video:'🎬 Видео сабақтар', text:'📄 Конспекттер', pdf:'📑 PDF материалдар' }[type]
+    if (!sheetName) throw new Error(`Белгісіз тип: "${type}"`)
+    if (!wb.SheetNames.includes(sheetName)) throw new Error(`Excel-де «${sheetName}» беті жоқ`)
+
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { range: 5, header: 1, defval: '' })
+    const row  = rows.find(r => Number(r[1]) === id)
+    if (!row) { status.value = 'notfound'; return }
+
+    lesson.value = {
+      id, type,
+      title:       String(row[2]  || ''),
+      author:      String(row[3]  || ''),
+      fileUrl:     String(row[4]  || ''),
+      cover:       String(row[5]  || defaultCover(type)),
+      duration:    String(row[6]  || ''),
+      level:       String(row[7]  || 'Орташа'),
+      topic:       String(row[8]  || ''),
+      category:    String(row[9]  || ''),
+      description: String(row[10] || ''),
+    }
+
+    // 2. Chapters
+    if (wb.SheetNames.includes('📚 Тараулар')) {
+      chapters.value = XLSX.utils.sheet_to_json(wb.Sheets['📚 Тараулар'], { range: 5, header: 1, defval: '' })
+          .filter(r => Number(r[1]) === id && String(r[2]) === type && String(r[3]).trim())
+          .map(r => ({ title: String(r[3]||''), time: String(r[4]||''), content: String(r[5]||''), fileUrl: String(r[6]||''), order: Number(r[7]||0) }))
+          .sort((a,b) => a.order - b.order)
+    }
+
+    // 3. Materials
+    if (wb.SheetNames.includes('📎 Материалдар')) {
+      materials.value = XLSX.utils.sheet_to_json(wb.Sheets['📎 Материалдар'], { range: 5, header: 1, defval: '' })
+          .filter(r => Number(r[1]) === id && String(r[2]) === type && String(r[3]).trim())
+          .map(r => ({ title: String(r[3]||''), fileType: String(r[4]||'pdf').toLowerCase(), size: String(r[5]||''), fileUrl: String(r[6]||''), order: Number(r[7]||0) }))
+          .sort((a,b) => a.order - b.order)
+    }
+
+    // 4. Пікірлер: алдымен LS тексер, болмаса Excel-ден оқы → LS-ке сақта
+    const cached = loadCommentsFromLS(type, id)
+    if (cached) {
+      // LS-те бар → тікелей жүктейміз
+      comments.value = cached
+    } else {
+      // LS жоқ → Excel-ден оқып LS-ке сақтаймыз
+      let excelComments = []
+      if (wb.SheetNames.includes('💬 Пікірлер')) {
+        excelComments = XLSX.utils.sheet_to_json(wb.Sheets['💬 Пікірлер'], { range: 5, header: 1, defval: '' })
+            .filter(r => Number(r[1]) === id && String(r[2]) === type && String(r[3]).trim())
+            .map((r, i) => ({
+              id:     `c_excel_${i}`,
+              author: String(r[3] || ''),
+              date:   String(r[4] || ''),
+              rating: Number(r[5] || 5),
+              text:   String(r[6] || ''),
+              order:  Number(r[7] || 0),
+              source: 'excel',
+            }))
+            .sort((a, b) => a.order - b.order)
+      }
+      comments.value = excelComments
+      saveCommentsToLS(type, id, excelComments)
+    }
+
+    status.value = 'ready'
+  } catch (e) {
+    status.value   = 'error'
+    errorMsg.value = e.message
+    console.error('[LessonDetail]', e)
+  }
+}
+
+function defaultCover(t) {
+  return { video:'https://images.unsplash.com/photo-1476820865390-c52aeebb9891?w=900&q=80', text:'https://images.unsplash.com/photo-1455390582262-044cdead277a?w=900&q=80', pdf:'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=900&q=80' }[t]
+}
+
+// ─── Computed ─────────────────────────────────────────
+const avgRating = computed(() => !comments.value.length ? 0 : comments.value.reduce((s,c) => s+c.rating,0)/comments.value.length)
+const notesWordCount = computed(() => notes.value.trim() ? notes.value.trim().split(/\s+/).length : 0)
+
+const tabList = computed(() => [
+  { key:'content',   label:'Мазмұн',                                icon:'pi-play-circle' },
+  { key:'materials', label:`Материалдар (${materials.value.length})`, icon:'pi-folder'    },
+  { key:'notes',     label:'Конспект',                               icon:'pi-pencil'     },
+  { key:'comments',  label:`Пікірлер (${comments.value.length})`,    icon:'pi-comments'   },
+])
+
+const infoRows = computed(() => lesson.value ? [
+  { icon:'pi-clock',     label:'Ұзақтығы',    val: lesson.value.duration },
+  { icon:'pi-tag',       label:'Тақырып',     val: lesson.value.topic },
+  { icon:'pi-chart-bar', label:'Деңгей',      val: lesson.value.level },
+  { icon:'pi-folder',    label:'Санат',        val: lesson.value.category },
+  { icon:'pi-list',      label:'Тараулар',    val: chapters.value.length + ' бөлім' },
+  { icon:'pi-paperclip', label:'Материалдар', val: materials.value.length + ' файл' },
+  { icon:'pi-star',      label:'Рейтинг',     val: avgRating.value > 0 ? avgRating.value.toFixed(1)+' / 5' : '—' },
+] : [])
+
+// ─── Helpers ──────────────────────────────────────────
+function typeIcon(t)  { return { video:'pi-play-circle', text:'pi-file-edit', pdf:'pi-file-pdf' }[t] || 'pi-book' }
+function typeLabel(t) { return { video:'Видео сабақ', text:'Конспект', pdf:'PDF материал' }[t] || t }
+function matIcon(t)   { return { pdf:'pi-file-pdf', docx:'pi-file-word', link:'pi-link', mp4:'pi-video' }[t] || 'pi-file' }
+function lvlClass(l)  { return l === 'Оңай' ? 'lv-easy' : l === 'Жоғары' ? 'lv-hard' : 'lv-mid' }
+
+// ─── Actions ──────────────────────────────────────────
+function scrollToContent() {
+  document.getElementById('lesson-content-anchor')?.scrollIntoView({ behavior: 'smooth' })
+}
+function saveNotes() {
+  localStorage.setItem(`lesson_notes_${route.params.type}_${route.params.id}`, notes.value)
+}
+function submitComment() {
+  if (!myComment.value.trim()) return
+
+  const type = String(route.params.type || 'video')
+  const id   = Number(route.params.id   || 1)
+
+  const newComment = {
+    id:     `c_user_${Date.now()}`,
+    author: currentUser?.value?.name || 'Оқушы',
+    date:   new Date().toLocaleDateString('kk-KZ'),
+    rating: myRating.value || 5,
+    text:   myComment.value.trim(),
+    order:  0,
+    source: 'user',
+  }
+
+  // Тізімнің алдына қосамыз
+  comments.value = [newComment, ...comments.value]
+
+  // localStorage-ке сақтаймыз
+  saveCommentsToLS(type, id, comments.value)
+
+  // Форманы тазалаймыз
+  myComment.value = ''
+  myRating.value  = 0
+}
+</script>
 
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,300&display=swap');
@@ -632,6 +687,11 @@ function submitComment() {
 .comments-list { display:flex; flex-direction:column; gap:1.25rem; margin-bottom:2rem; }
 .comment-card  { display:flex; gap:.85rem; }
 .cc-ava  { width:38px; height:38px; border-radius:50%; flex-shrink:0; background:linear-gradient(135deg,var(--gold),var(--rust)); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:.9rem; }
+.cc-ava.ava-user { background:linear-gradient(135deg,var(--sage),#2a5c3a); }
+.cc-new-badge { font-size:.6rem; font-weight:700; background:var(--gold); color:#fff; padding:.1rem .42rem; border-radius:10px; text-transform:uppercase; letter-spacing:.07em; margin-left:auto; animation:pulse-badge 2s ease infinite; }
+@keyframes pulse-badge { 0%,100%{opacity:1} 50%{opacity:.6} }
+.cf-hint { font-size:.68rem; color:#9a8a72; display:flex; align-items:center; gap:.3rem; margin:.5rem 0 0; font-style:italic; }
+.cf-hint i { color:var(--gold); font-size:.7rem; }
 .cc-body { flex:1; }
 .cc-top  { display:flex; align-items:baseline; gap:.6rem; margin-bottom:.3rem; }
 .cc-name { font-weight:700; font-size:.85rem; color:var(--ink); }
