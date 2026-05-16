@@ -1,120 +1,52 @@
+// composables/useAudioStore.js
+// ─────────────────────────────────────────────────────
+// Supabase → audio_tracks + audio_lines + audio_glossary
+// Excel жоқ, localStorage жоқ — тек Supabase
+// ─────────────────────────────────────────────────────
 import { ref, computed } from 'vue'
-import * as XLSX from 'xlsx'
+import { supabase } from './useSupabase'
 
-const EXCEL_PATH  = '/data/AudioVisual_MB.xlsx'
-const LS_KEY      = 'audio_store_v1'
-const LS_META_KEY = 'audio_store_meta'
-
-// ── Singleton state ───────────────────────────────────
+// ── Singleton ─────────────────────────────────────────
 const tracks      = ref([])
 const loading     = ref(false)
 const error       = ref('')
 const initialized = ref(false)
 
-// ── localStorage helpers ──────────────────────────────
-function saveToLS(data) {
-    try {
-        localStorage.setItem(LS_KEY, JSON.stringify(data))
-        localStorage.setItem(LS_META_KEY, JSON.stringify({
-            savedAt: new Date().toISOString(),
-            count:   data.length,
-        }))
-    } catch(e) { console.warn('[AudioStore] LS write error:', e) }
-}
-
-function loadFromLS() {
-    try {
-        const raw = localStorage.getItem(LS_KEY)
-        return raw ? JSON.parse(raw) : null
-    } catch { return null }
-}
-
-// ── Parse Excel ───────────────────────────────────────
-// Sheet 1: 🎵 Аудио треки  — row 6+
-// cols: 0=skip 1=№ 2=title 3=author 4=genre 5=duration 6=totalSec 7=color 8=cover 9=bookmarked
-// Sheet 2: 📝 Мәтін жолдары — row 6+
-// cols: 0=skip 1=trackNo 2=lineNo 3=timeSec 4=text
-// Sheet 3: 📖 Сөздік — row 6+
-// cols: 0=skip 1=trackNo 2=word 3=def 4=example 5=tag
-
-async function fetchFromExcel() {
-    const res = await fetch(EXCEL_PATH)
-    if (!res.ok) throw new Error(`AudioVisual_MB.xlsx табылмады (${res.status})`)
-    const wb = XLSX.read(await res.arrayBuffer(), { type: 'array' })
-
-    // ── 1. Tracks ─────────────────────────────────────
-    const trackSheet = wb.Sheets['🎵 Аудио треки']
-    if (!trackSheet) throw new Error('«🎵 Аудио треки» беті жоқ')
-
-    const trackRows = XLSX.utils.sheet_to_json(trackSheet, { range: 5, header: 1, defval: '' })
-        .filter(r => r[1]) // №  бос емес
-
-    // ── 2. Lines ──────────────────────────────────────
-    const lineSheet = wb.Sheets['📝 Мәтін жолдары']
-    const lineRows  = lineSheet
-        ? XLSX.utils.sheet_to_json(lineSheet, { range: 5, header: 1, defval: '' }).filter(r => r[1])
-        : []
-
-    // ── 3. Glossary ───────────────────────────────────
-    const glossSheet = wb.Sheets['📖 Сөздік']
-    const glossRows  = glossSheet
-        ? XLSX.utils.sheet_to_json(glossSheet, { range: 5, header: 1, defval: '' }).filter(r => r[2])
-        : []
-
-    // Build glossary map: trackNo → { word → { def, example, tag } }
+// ── MAP ───────────────────────────────────────────────
+function mapTrack(r, lines = [], glossary = []) {
+    // Glossary map: word → { definition, example, tag }
     const glossMap = {}
-    glossRows.forEach(r => {
-        const tno  = Number(r[1])
-        const word = String(r[2]).trim()
-        if (!glossMap[tno]) glossMap[tno] = {}
-        glossMap[tno][word] = {
-            def:     String(r[3] || ''),
-            example: String(r[4] || ''),
-            tag:     String(r[5] || 'Ескі сөз'),
-        }
+    glossary.filter(g => g.track_id === r.id).forEach(g => {
+        glossMap[g.word.trim()] = { def: g.definition || '', example: g.example || '', tag: g.tag || 'Ескі сөз' }
     })
 
-    // Build lines map: trackNo → [ { time, text, words[] } ]
-    const linesMap = {}
-    lineRows.forEach(r => {
-        const tno  = Number(r[1])
-        const time = Number(r[3] || 0)
-        const text = String(r[4] || '').trim()
-        if (!linesMap[tno]) linesMap[tno] = []
-
-        // Parse words — highlight hard words from glossary
-        const gloss = glossMap[tno] || {}
-        const words = text.split(/\s+/).map(raw => {
-            const clean = raw.replace(/[,.'!?—]/g, '')
-            if (gloss[clean]) {
-                return { text: raw, hard: true, ...gloss[clean] }
-            }
-            return { text: raw }
+    // Lines → words with hard words highlighted
+    const mappedLines = lines
+        .filter(l => l.track_id === r.id)
+        .sort((a, b) => a.line_order - b.line_order)
+        .map(l => {
+            const words = (l.text || '').split(/\s+/).map(raw => {
+                const clean = raw.replace(/[,.'!?—:;()]/g, '')
+                return glossMap[clean]
+                    ? { text: raw, hard: true, ...glossMap[clean] }
+                    : { text: raw }
+            })
+            return { time: l.time_sec || 0, text: l.text, words }
         })
 
-        linesMap[tno].push({ time, text, words })
-    })
-
-    // Assemble final tracks array
-    // cols: 0=skip 1=№ 2=title 3=author 4=genre 5=duration 6=totalSec 7=color 8=cover 9=fileUrl 10=bookmarked
-    const data = trackRows.map(r => {
-        const tno = Number(r[1])
-        return {
-            id:         tno,
-            title:      String(r[2] || ''),
-            author:     String(r[3] || ''),
-            genre:      String(r[4] || ''),
-            duration:   String(r[5] || ''),
-            totalSec:   Number(r[6] || 0),
-            color:      String(r[7] || '#c4922a'),
-            cover:      String(r[8] || ''),
-            fileUrl:    String(r[9] || ''),   // /audios/fayl.mp3
-            bookmarked: String(r[10]).toUpperCase() === 'TRUE',
-            lines:      (linesMap[tno] || []).sort((a, b) => a.time - b.time),
-        }
-    })
-
-    return data
+    return {
+        id:         r.id,
+        title:      r.title      || '',
+        author:     r.author     || '',
+        genre:      r.genre      || '',
+        duration:   r.duration   || '',
+        totalSec:   r.total_sec  || 0,
+        color:      r.color      || '#c4922a',
+        cover:      r.cover      || '',
+        fileUrl:    r.file_url   || '',
+        bookmarked: r.bookmarked || false,
+        lines:      mappedLines,
+    }
 }
 
 // ── PUBLIC COMPOSABLE ─────────────────────────────────
@@ -124,42 +56,45 @@ export function useAudioStore() {
         if (initialized.value && !forceReload) return
         loading.value = true
         error.value   = ''
-
-        // Try localStorage cache first
-        if (!forceReload) {
-            const cached = loadFromLS()
-            if (cached && cached.length > 0) {
-                tracks.value      = cached
-                initialized.value = true
-                loading.value     = false
-                return
-            }
-        }
-
-        // Read from Excel
         try {
-            const data        = await fetchFromExcel()
-            tracks.value      = data
+            // Параллельді 3 сұраным
+            const [tracksRes, linesRes, glossRes] = await Promise.all([
+                supabase.from('audio_tracks') .select('*').order('id'),
+                supabase.from('audio_lines')  .select('*').order('line_order'),
+                supabase.from('audio_glossary').select('*'),
+            ])
+
+            if (tracksRes.error) throw tracksRes.error
+            if (linesRes.error)  throw linesRes.error
+            if (glossRes.error)  throw glossRes.error
+
+            tracks.value      = (tracksRes.data || []).map(r =>
+                mapTrack(r, linesRes.data || [], glossRes.data || [])
+            )
             initialized.value = true
-            saveToLS(data)
         } catch(e) {
-            error.value = e.message
-            const cached = loadFromLS()
-            if (cached) { tracks.value = cached; initialized.value = true }
+            error.value = e.message || 'Supabase қосылу қатесі'
+            console.error('[AudioStore]', e)
         } finally {
             loading.value = false
         }
     }
 
-    async function reloadFromExcel() { await init(true) }
+    async function reloadFromExcel() { await init(true) } // alias
 
-    // Bookmark-ты localStorage-ке сақтайды
-    function toggleBookmark(trackId) {
-        const t = tracks.value.find(t => t.id === trackId)
-        if (!t) return
-        t.bookmarked = !t.bookmarked
-        tracks.value = [...tracks.value]
-        saveToLS(tracks.value)
+    // Bookmark → Supabase UPDATE
+    async function toggleBookmark(trackId) {
+        const track = tracks.value.find(t => t.id === trackId)
+        if (!track) return
+        const newVal = !track.bookmarked
+        const { error: err } = await supabase
+            .from('audio_tracks')
+            .update({ bookmarked: newVal })
+            .eq('id', trackId)
+        if (err) { console.error('[AudioStore] toggleBookmark:', err); return }
+        tracks.value = tracks.value.map(t =>
+            t.id === trackId ? { ...t, bookmarked: newVal } : t
+        )
     }
 
     const stats = computed(() => ({

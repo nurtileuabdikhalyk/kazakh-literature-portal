@@ -15,15 +15,17 @@
     <!-- ══ LOADING ══════════════════════════════════════ -->
     <div v-if="loading" class="db-state">
       <div class="db-spinner"/>
-      <p>Жүктелуде…</p>
-      <p class="db-hint">AudioVisual_MB.xlsx → localStorage['audio_store_v1']</p>
+      <p>Supabase-тен жүктелуде…</p>
+      <p class="db-hint" style="color:#3ecf8e; font-family:monospace">
+        audio_tracks · audio_lines · audio_glossary
+      </p>
     </div>
 
     <!-- ══ ERROR ════════════════════════════════════════ -->
     <div v-else-if="error" class="db-state error">
       <i class="pi pi-exclamation-triangle"/>
       <p>{{ error }}</p>
-      <button class="retry-btn" @click="reloadFromExcel">
+      <button class="retry-btn" @click="init(true)">
         <i class="pi pi-refresh"/> Қайта жүктеу
       </button>
     </div>
@@ -50,6 +52,9 @@
           <span class="tlp-title">
             <i class="pi pi-headphones"/> Шығармалар
             <span class="tlp-cnt">{{ tracks.length }}</span>
+          </span>
+          <span class="tlp-sb-badge">
+            <i class="pi pi-database"/>
           </span>
           <div class="tlp-search">
             <i class="pi pi-search"/>
@@ -184,7 +189,7 @@
                 <i class="pi pi-align-left"/>
                 {{ showText ? 'Жасыру' : 'Мәтінді көру' }}
               </button>
-              <button class="pa-btn" @click="reloadFromExcel" title="Excel-ден қайта жүктеу">
+              <button class="pa-btn" @click="init(true)" title="Supabase-тен қайта жүктеу">
                 <i class="pi pi-refresh"/> Жаңарту
               </button>
             </div>
@@ -281,8 +286,8 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useAudioStore } from '@/composables/useAudioStore'
 
-// ── Store ─────────────────────────────────────────────
-const { tracks, loading, error, init, reloadFromExcel, toggleBookmark } = useAudioStore()
+// ── Store — Supabase ─────────────────────────────────
+const { tracks, loading, error, init, toggleBookmark } = useAudioStore()
 
 // ── Constants ─────────────────────────────────────────
 const speeds    = [0.5, 0.75, 1, 1.25, 1.5]
@@ -533,6 +538,7 @@ function fmtTime(s) {
 .tlp-head  { padding:.85rem 1rem; border-bottom:1px solid rgba(196,146,42,.15); display:flex; flex-direction:column; gap:.6rem; }
 .tlp-title { font-size:.72rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); display:flex; align-items:center; gap:.4rem; }
 .tlp-cnt   { font-size:.65rem; background:rgba(196,146,42,.15); padding:.08rem .38rem; border-radius:8px; }
+.tlp-sb-badge { font-size:.65rem; color:#3ecf8e; margin-left:auto; opacity:.8; }
 .tlp-search{ display:flex; align-items:center; gap:.5rem; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); border-radius:2px; padding:.38rem .65rem; }
 .tlp-search i { color:rgba(255,255,255,.3); font-size:.75rem; }
 .tlp-input { flex:1; background:transparent; border:none; outline:none; font-family:'Source Serif 4',serif; font-size:.78rem; color:#fff; }

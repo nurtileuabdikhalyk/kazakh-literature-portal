@@ -128,15 +128,21 @@
 
             <div class="field full">
               <label class="flabel">
-                Мұқаба сурет URL
-                <span class="flabel-sub">/covers/сурет.jpg немесе Unsplash</span>
+                Мұқаба сурет
+                <span class="flabel-sub">
+                  Жергілікті жол немесе URL:
+                  /icons/abai.png · /covers/image.jpg · https://…
+                </span>
               </label>
               <div class="cover-row">
                 <input v-model="form.cover" class="finput"
-                       placeholder="https://images.unsplash.com/…"/>
+                       placeholder="/icons/abai.png немесе https://images.unsplash.com/…"/>
                 <img v-if="form.cover" :src="form.cover" class="cover-mini"
-                     @error="form.cover = ''"/>
+                     @error="coverBroken = true" @load="coverBroken = false"/>
               </div>
+              <p v-if="coverBroken && form.cover" class="ferr-soft">
+                <i class="pi pi-exclamation-circle"/> Сурет жүктелмеді — жолды тексеріңіз
+              </p>
             </div>
 
           </div>
@@ -168,9 +174,11 @@
           <p class="preview-lbl"><i class="pi pi-eye"/> Алдын ала қарау</p>
           <div class="preview-card" :class="form.type">
             <div class="pc-thumb">
-              <img v-if="form.cover" :src="form.cover" class="pc-img" @error="form.cover=''"/>
+              <img v-if="form.cover && !coverBroken" :src="form.cover" class="pc-img"
+                   @error="coverBroken = true" @load="coverBroken = false"/>
               <div v-else class="pc-no-img">
                 <i :class="'pi '+typeIcon"/>
+                <span v-if="coverBroken" class="pc-no-hint">Сурет жүктелмеді</span>
               </div>
               <span class="pc-badge" :class="form.type">
                 <i :class="'pi '+typeIcon"/> {{ form.type||'—' }}
@@ -234,18 +242,18 @@
 </template>
 
 <script setup>
-import {ref, reactive, computed, onMounted} from 'vue'
-import {useRouter, useRoute} from 'vue-router'
-import {useAuth} from '@/composables/useAuth'
-import {useLessonsStore} from '@/composables/useLessonsStore'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import { useAuth }         from '@/composables/useAuth'
+import { useLessonsStore } from '@/composables/useLessonsStore'
 
 const router = useRouter()
-const route = useRoute()
-const {currentUser} = useAuth()
-const {lessons, loading, stats, init, addLesson, updateLesson, getById} = useLessonsStore()
+const route  = useRoute()
+const { currentUser } = useAuth()
+const { lessons, loading, stats, init, addLesson, updateLesson, getById } = useLessonsStore()
 
 // ── Constants ─────────────────────────────────────────
-const TYPES = [
+const TYPES   = [
   {val: 'video', label: 'Видео', icon: 'pi-play-circle'},
   {val: 'text', label: 'Конспект', icon: 'pi-file-edit'},
   {val: 'pdf', label: 'PDF', icon: 'pi-file-pdf'},
@@ -266,8 +274,14 @@ const form = reactive({
 })
 const ve = reactive({title: '', topic: '', fileUrl: ''})
 const saving = ref(false)
+const coverBroken = ref(false)
 const toast = reactive({show: false, msg: '', type: 'success'})
 let toastTimer = null
+
+// Cover өзгергенде broken state-ті тазалаймыз
+watch(() => form.cover, () => {
+  coverBroken.value = false
+})
 
 // ── Computed ──────────────────────────────────────────
 const typeIcon = computed(() =>
@@ -277,10 +291,18 @@ const urlLabel = computed(() =>
     ({video: 'Видео URL', text: 'Файл жолы', pdf: 'PDF файл жолы'})[form.type]
 )
 const urlHint = computed(() =>
-    ({video: 'YouTube немесе /videos/файл.mp4', text: '/texts/файл.md', pdf: '/pdfs/файл.pdf'})[form.type]
+    ({
+      video: 'YouTube URL немесе жергілікті жол: /videos/файл.mp4',
+      text: 'Жергілікті жол: /texts/файл.md немесе /texts/файл.html',
+      pdf: 'Жергілікті жол: /pdfs/файл.pdf',
+    })[form.type]
 )
 const urlPlaceholder = computed(() =>
-    ({video: 'https://youtube.com/watch?v=...', text: '/texts/abai.md', pdf: '/pdfs/abai.pdf'})[form.type]
+    ({
+      video: 'https://youtube.com/watch?v=... немесе /videos/abai.mp4',
+      text: '/texts/abai.md',
+      pdf: '/pdfs/abai.pdf',
+    })[form.type]
 )
 const durPlaceholder = computed(() =>
     ({video: '45:20', text: '25 мин', pdf: '48 бет'})[form.type]
@@ -329,7 +351,8 @@ function toggleCls(cls) {
 function validate() {
   ve.title = form.title.trim() ? '' : 'Сабақ атауын енгізіңіз'
   ve.topic = form.topic ? '' : 'Тақырып таңдаңыз'
-  ve.fileUrl = form.fileUrl.trim() ? '' : 'Файл жолын енгізіңіз'
+  ve.fileUrl = form.fileUrl.trim() ? '' : 'Файл жолын немесе URL енгізіңіз'
+  // fileUrl: жергілікті жол (/ бастала) немесе https:// — екеуі де дұрыс
   return !ve.title && !ve.topic && !ve.fileUrl
 }
 
@@ -684,6 +707,16 @@ async function save() {
   margin: 0;
 }
 
+.ferr-soft {
+  font-size: .68rem;
+  color: var(--gold);
+  margin: .3rem 0 0;
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+  font-style: italic;
+}
+
 /* Level row */
 .lv-row {
   display: flex;
@@ -953,13 +986,21 @@ async function save() {
   width: 100%;
   height: 100%;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: .4rem;
 }
 
 .pc-no-img i {
   font-size: 2rem;
   color: #d9cdb8;
+}
+
+.pc-no-hint {
+  font-size: .62rem;
+  color: var(--gold);
+  font-style: italic;
 }
 
 .pc-badge {

@@ -8,8 +8,6 @@
       </div>
       <h2 class="section-title">
         <span class="title-kz">Сабақтар</span>
-        <span class="title-div">/</span>
-        <span class="title-ru">Уроки</span>
       </h2>
       <p class="section-sub">Қазақ әдебиеті бойынша жүйеленген оқу материалдары</p>
     </div>
@@ -64,7 +62,7 @@
           <div v-if="featured.type === 'video'" class="fl-play"><i class="pi pi-play"/></div>
           <span class="fl-badge" :class="featured.type">
             <i :class="'pi ' + typeIcon(featured.type)"/>
-            {{ typeLabel(featured.type) }}
+<!--            {{ typeLabel(featured.type) }}-->
           </span>
           <span class="fl-dur">{{ featured.duration }}</span>
         </div>
@@ -142,10 +140,10 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useLessonsStoreCopy } from '@/composables/useLessonsStoreCopy.js'
+import { useLessonsStore } from '@/composables/useLessonsStore.js'
 
 const router = useRouter()
-const { lessons: allLessons, loading, error: loadError, init } = useLessonsStoreCopy()
+const { lessons: allLessons, loading, error: loadError, init } = useLessonsStore()
 
 // ── Config ────────────────────────────────────────────
 const PREVIEW_LIMIT = 12

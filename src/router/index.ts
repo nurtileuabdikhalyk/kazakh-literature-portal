@@ -48,6 +48,12 @@ const routes = [
             import( "@/pages/AddTaskForm.vue"),
         meta: {requiresAuth: true, role: 'мұғалім'},
     },
+    {
+        path: '/teacher/add-audio',
+        name: 'add-audio', component: () =>
+            import( "@/pages/AddAudiovisualForm.vue"),
+        meta: {requiresAuth: true, role: 'мұғалім'}
+    },
     // {
     //     path: '/interactive',
     //     name: 'interactive',

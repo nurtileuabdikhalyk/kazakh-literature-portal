@@ -1,178 +1,3 @@
-
-<script setup>
-import { ref, computed, onMounted, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import * as XLSX from 'xlsx'
-
-const route  = useRoute()
-const router = useRouter()
-
-// ── Config ────────────────────────────────────────────
-const EXCEL_PATH = '/data/Sabaqtar_MB.xlsx'
-const PER_PAGE     = 12
-
-const TYPE_TABS = [
-  { key: 'all',   label: 'Барлығы',     icon: 'pi-th-large'    },
-  { key: 'video', label: 'Видео сабақ', icon: 'pi-play-circle' },
-  { key: 'text',  label: 'Конспект',    icon: 'pi-file-edit'   },
-  { key: 'pdf',   label: 'PDF',         icon: 'pi-file-pdf'    },
-]
-const TOPIC_COLORS = {
-  'Классика':'#8b3a1e','Поэзия':'#4a5e4c','Проза':'#2a3a5c',
-  'Эпос':'#5c3a1e','Теория':'#5a3a5a','Авторлар':'#c4922a','Шығармалар':'#2a5c3a',
-}
-
-// ── State ─────────────────────────────────────────────
-const loading    = ref(true)
-const loadError  = ref('')
-const allLessons = ref([])
-
-const search      = ref('')
-const searchFocused= ref(false)
-const activeType  = ref('all')
-const activeTopic = ref('all')
-const activeLevel = ref('all')
-const sortBy      = ref('default')
-const viewMode    = ref('grid')
-const currentPage = ref(1)
-
-// ── Init from route query ─────────────────────────────
-onMounted(() => {
-  if (route.query.type && route.query.type !== 'all') activeType.value = String(route.query.type)
-  if (route.query.topic) activeTopic.value = String(route.query.topic)
-  loadFromExcel()
-})
-
-// ── Load Excel ────────────────────────────────────────
-async function loadFromExcel() {
-  loading.value   = true
-  loadError.value = ''
-  allLessons.value = []
-  try {
-    const res = await fetch(EXCEL_PATH)
-    if (!res.ok) throw new Error(`${EXCEL_PATH} — файл табылмады (${res.status})`)
-    const buf = await res.arrayBuffer()
-    const wb  = XLSX.read(buf, { type: 'array' })
-    const data = []
-    const sheetMap = {
-      '🎬 Видео сабақтар': 'video',
-      '📄 Конспекттер':    'text',
-      '📑 PDF материалдар':'pdf',
-    }
-    Object.entries(sheetMap).forEach(([sheet, type]) => {
-      if (!wb.SheetNames.includes(sheet)) return
-      XLSX.utils.sheet_to_json(wb.Sheets[sheet], { range: 5, header: 1, defval: '' })
-          .filter(r => String(r[2] || '').trim())
-          .forEach((r, i) => {
-            data.push({
-              id:          Number(r[1]) || (i + 1),
-              type,
-              title:       String(r[2]  || ''),
-              author:      String(r[3]  || ''),
-              fileUrl:     String(r[4]  || ''),
-              cover:       String(r[5]  || defaultCover(type)),
-              duration:    String(r[6]  || ''),
-              level:       String(r[7]  || 'Орташа'),
-              topic:       String(r[8]  || ''),
-              category:    String(r[9]  || ''),
-              description: String(r[10] || ''),
-            })
-          })
-    })
-    if (!data.length) throw new Error('Excel файлда сабақ жоқ')
-    allLessons.value = data
-  } catch (e) {
-    loadError.value = e.message
-    console.error('[LessonsList]', e)
-  } finally {
-    loading.value = false
-  }
-}
-
-function defaultCover(type) {
-  return { video:'https://images.unsplash.com/photo-1476820865390-c52aeebb9891?w=600&q=80', text:'https://images.unsplash.com/photo-1455390582262-044cdead277a?w=600&q=80', pdf:'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=600&q=80' }[type]
-}
-
-// ── Computed ──────────────────────────────────────────
-function countByType(t) { return allLessons.value.filter(l => l.type === t).length }
-
-const topicOptions = computed(() => {
-  const set = new Set(allLessons.value.map(l => l.topic).filter(Boolean))
-  return [...set].sort()
-})
-
-const hasFilters = computed(() =>
-    activeType.value !== 'all' || activeTopic.value !== 'all' ||
-    activeLevel.value !== 'all' || search.value.trim()
-)
-
-const filteredLessons = computed(() => {
-  let list = [...allLessons.value]
-
-  if (activeType.value !== 'all')  list = list.filter(l => l.type === activeType.value)
-  if (activeTopic.value !== 'all') list = list.filter(l => l.topic === activeTopic.value)
-  if (activeLevel.value !== 'all') list = list.filter(l => l.level === activeLevel.value)
-
-  if (search.value.trim()) {
-    const q = search.value.toLowerCase()
-    list = list.filter(l =>
-        l.title.toLowerCase().includes(q) ||
-        l.author.toLowerCase().includes(q) ||
-        l.topic.toLowerCase().includes(q) ||
-        l.description.toLowerCase().includes(q)
-    )
-  }
-
-  if (sortBy.value === 'alpha') list.sort((a, b) => a.title.localeCompare(b.title, 'kk'))
-  if (sortBy.value === 'level') {
-    const ord = { 'Оңай': 0, 'Орташа': 1, 'Жоғары': 2 }
-    list.sort((a, b) => (ord[a.level] || 0) - (ord[b.level] || 0))
-  }
-
-  return list
-})
-
-const totalFiltered = computed(() => filteredLessons.value.length)
-const totalPages    = computed(() => Math.max(1, Math.ceil(totalFiltered.value / PER_PAGE)))
-
-const paginatedLessons = computed(() => {
-  const start = (currentPage.value - 1) * PER_PAGE
-  return filteredLessons.value.slice(start, start + PER_PAGE)
-})
-
-// Pagination range with ellipsis
-const pagesRange = computed(() => {
-  const total = totalPages.value
-  const cur   = currentPage.value
-  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
-  const pages = []
-  pages.push(1)
-  if (cur > 3)       pages.push('...')
-  for (let p = Math.max(2, cur - 1); p <= Math.min(total - 1, cur + 1); p++) pages.push(p)
-  if (cur < total - 2) pages.push('...')
-  pages.push(total)
-  return pages
-})
-
-// Reset page on filter change
-watch([search, activeType, activeTopic, activeLevel, sortBy], () => { currentPage.value = 1 })
-
-// ── Helpers ───────────────────────────────────────────
-function typeIcon(t)  { return { video:'pi-play-circle', text:'pi-file-edit', pdf:'pi-file-pdf' }[t] || 'pi-book' }
-function typeLabel(t) { return { video:'Видео', text:'Конспект', pdf:'PDF' }[t] || t }
-function topicColor(t){ return TOPIC_COLORS[t] || '#c4922a' }
-function lvlClass(l)  { return l === 'Оңай' ? 'lv-easy' : l === 'Жоғары' ? 'lv-hard' : 'lv-mid' }
-
-// ── Actions ───────────────────────────────────────────
-function openLesson(lesson) {
-  router.push({ name: 'lesson-detail', params: { type: lesson.type, id: lesson.id } })
-}
-function clearFilters() {
-  search.value = ''; activeType.value = 'all'
-  activeTopic.value = 'all'; activeLevel.value = 'all'
-  sortBy.value = 'default'; currentPage.value = 1
-}
-</script>
 <template>
   <div class="lessons-list-page">
 
@@ -294,15 +119,17 @@ function clearFilters() {
     <!-- ══ LOADING ══════════════════════════════════════ -->
     <div v-if="loading" class="state-wrap">
       <div class="spinner"/>
-      <p>Excel дерекқордан жүктелуде…</p>
-      <p class="state-hint">{{ EXCEL_PATH }}</p>
+      <p>Supabase-тен жүктелуде…</p>
+      <p class="state-hint" style="color:#3ecf8e; font-family:monospace">
+        Supabase · lessons
+      </p>
     </div>
 
     <!-- ══ ERROR ════════════════════════════════════════ -->
     <div v-else-if="loadError" class="state-wrap error">
       <i class="pi pi-exclamation-triangle"/>
       <p>{{ loadError }}</p>
-      <button class="btn-gold" @click="loadFromExcel">
+      <button class="btn-gold" @click="init(true)">
         <i class="pi pi-refresh"/> Қайта жүктеу
       </button>
     </div>
@@ -331,7 +158,7 @@ function clearFilters() {
               @click="openLesson(lesson)"
           >
             <div class="gc-thumb">
-              <img :src="lesson.cover" :alt="lesson.title" class="gc-img"/>
+              <img :src="lesson.cover || defaultCover(lesson.type)" :alt="lesson.title" class="gc-img"/>
               <div class="gc-dark"/>
               <div v-if="lesson.type === 'video'" class="gc-play"><i class="pi pi-play"/></div>
               <span class="gc-type" :class="lesson.type">
@@ -363,7 +190,7 @@ function clearFilters() {
               @click="openLesson(lesson)"
           >
             <div class="lc-thumb-wrap">
-              <img :src="lesson.cover" :alt="lesson.title" class="lc-img"/>
+              <img :src="lesson.cover || defaultCover(lesson.type)" :alt="lesson.title" class="lc-img"/>
               <div v-if="lesson.type === 'video'" class="lc-play-sm"><i class="pi pi-play"/></div>
               <span class="gc-type" :class="lesson.type" style="position:absolute;top:.4rem;left:.4rem">
                 <i :class="'pi ' + typeIcon(lesson.type)"/>
@@ -424,6 +251,131 @@ function clearFilters() {
   </div>
 </template>
 
+<script setup>
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useLessonsStore } from '@/composables/useLessonsStore'
+
+const route  = useRoute()
+const router = useRouter()
+
+// ── Store — Supabase ──────────────────────────────────
+const { lessons: allLessons, loading, error: loadError, init } = useLessonsStore()
+
+// ── Config ────────────────────────────────────────────
+const PER_PAGE = 12
+
+const TYPE_TABS = [
+  { key: 'all',   label: 'Барлығы',    icon: 'pi-th-large'    },
+  { key: 'video', label: 'Видео сабақ', icon: 'pi-play-circle' },
+  { key: 'text',  label: 'Конспект',   icon: 'pi-file-edit'   },
+  { key: 'pdf',   label: 'PDF',        icon: 'pi-file-pdf'    },
+]
+const TOPIC_COLORS = {
+  'Классика':'#8b3a1e','Поэзия':'#4a5e4c','Проза':'#2a3a5c',
+  'Эпос':'#5c3a1e','Теория':'#5a3a5a','Авторлар':'#c4922a','Шығармалар':'#2a5c3a',
+}
+
+// ── State ─────────────────────────────────────────────
+const search       = ref('')
+const searchFocused = ref(false)
+const activeType   = ref('all')
+const activeTopic  = ref('all')
+const activeLevel  = ref('all')
+const sortBy       = ref('default')
+const viewMode     = ref('grid')
+const currentPage  = ref(1)
+
+// ── Init — route query + Supabase ─────────────────────
+onMounted(async () => {
+  if (route.query.type && route.query.type !== 'all')
+    activeType.value = String(route.query.type)
+  if (route.query.topic)
+    activeTopic.value = String(route.query.topic)
+  await init()   // useLessonsStore → Supabase lessons кестесі
+})
+
+// ── Computed ──────────────────────────────────────────
+function countByType(t) { return allLessons.value.filter(l => l.type === t).length }
+
+const topicOptions = computed(() =>
+    [...new Set(allLessons.value.map(l => l.topic).filter(Boolean))].sort()
+)
+
+const hasFilters = computed(() =>
+    activeType.value !== 'all' || activeTopic.value !== 'all' ||
+    activeLevel.value !== 'all' || search.value.trim()
+)
+
+const filteredLessons = computed(() => {
+  let list = [...allLessons.value]
+  if (activeType.value  !== 'all') list = list.filter(l => l.type  === activeType.value)
+  if (activeTopic.value !== 'all') list = list.filter(l => l.topic === activeTopic.value)
+  if (activeLevel.value !== 'all') list = list.filter(l => l.level === activeLevel.value)
+  if (search.value.trim()) {
+    const q = search.value.toLowerCase()
+    list = list.filter(l =>
+        (l.title       || '').toLowerCase().includes(q) ||
+        (l.author      || '').toLowerCase().includes(q) ||
+        (l.topic       || '').toLowerCase().includes(q) ||
+        (l.description || '').toLowerCase().includes(q)
+    )
+  }
+  if (sortBy.value === 'alpha') list.sort((a, b) => a.title.localeCompare(b.title, 'kk'))
+  if (sortBy.value === 'level') {
+    const ord = { 'Оңай':0, 'Орташа':1, 'Жоғары':2 }
+    list.sort((a, b) => (ord[a.level]||0) - (ord[b.level]||0))
+  }
+  return list
+})
+
+const totalFiltered = computed(() => filteredLessons.value.length)
+const totalPages    = computed(() => Math.max(1, Math.ceil(totalFiltered.value / PER_PAGE)))
+
+const paginatedLessons = computed(() => {
+  const start = (currentPage.value - 1) * PER_PAGE
+  return filteredLessons.value.slice(start, start + PER_PAGE)
+})
+
+const pagesRange = computed(() => {
+  const total = totalPages.value
+  const cur   = currentPage.value
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+  const pages = [1]
+  if (cur > 3)        pages.push('...')
+  for (let p = Math.max(2, cur-1); p <= Math.min(total-1, cur+1); p++) pages.push(p)
+  if (cur < total-2)  pages.push('...')
+  pages.push(total)
+  return pages
+})
+
+// Reset page on filter change
+watch([search, activeType, activeTopic, activeLevel, sortBy], () => { currentPage.value = 1 })
+
+// ── Helpers ───────────────────────────────────────────
+function typeIcon(t)   { return { video:'pi-play-circle', text:'pi-file-edit', pdf:'pi-file-pdf' }[t] || 'pi-book' }
+function typeLabel(t)  { return { video:'Видео', text:'Конспект', pdf:'PDF' }[t] || t }
+function topicColor(t) { return TOPIC_COLORS[t] || '#c4922a' }
+function lvlClass(l)   { return l === 'Оңай' ? 'lv-easy' : l === 'Жоғары' ? 'lv-hard' : 'lv-mid' }
+
+function defaultCover(type) {
+  return {
+    video: 'https://images.unsplash.com/photo-1476820865390-c52aeebb9891?w=600&q=80',
+    text:  'https://images.unsplash.com/photo-1455390582262-044cdead277a?w=600&q=80',
+    pdf:   'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=600&q=80',
+  }[type] || ''
+}
+
+// ── Actions ───────────────────────────────────────────
+function openLesson(lesson) {
+  router.push({ name: 'lesson-detail', params: { type: lesson.type, id: lesson.id } })
+}
+function clearFilters() {
+  search.value = ''; activeType.value = 'all'
+  activeTopic.value = 'all'; activeLevel.value = 'all'
+  sortBy.value = 'default'; currentPage.value = 1
+}
+</script>
 
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,300&display=swap');

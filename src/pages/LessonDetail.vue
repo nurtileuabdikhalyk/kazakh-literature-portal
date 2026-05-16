@@ -5,14 +5,12 @@
     <div v-if="status === 'loading'" class="state-screen">
       <div class="spinner"/>
       <p>Сабақ жүктелуде…</p>
-      <p class="state-hint">{{ EXCEL_PATH }}</p>
     </div>
 
     <!-- ══ ERROR ════════════════════════════════════════ -->
     <div v-else-if="status === 'error'" class="state-screen error">
       <i class="pi pi-exclamation-triangle"/>
       <p>{{ errorMsg }}</p>
-      <p class="state-hint">Excel файлын /public/data/ папкасына салыңыз</p>
       <div class="state-btns">
         <button class="btn-gold" @click="init"><i class="pi pi-refresh"/> Қайта жүктеу</button>
         <button class="btn-outline" @click="$router.back()"><i class="pi pi-arrow-left"/> Артқа</button>
@@ -162,7 +160,6 @@
                   :title="lesson.title"
               />
 
-
               <!-- Chapters list -->
               <div v-if="chapters.length" class="chapters-panel">
                 <div class="panel-head">
@@ -206,7 +203,7 @@
               <div v-else class="empty-state">
                 <i class="pi pi-paperclip"/>
                 <p>Материал жоқ</p>
-                <span class="empty-hint">«📎 Материалдар» бетіне жол қосыңыз</span>
+                <span class="empty-hint">Supabase · lesson_materials кестесіне қосыңыз</span>
               </div>
             </div>
 
@@ -226,43 +223,64 @@
               </div>
             </div>
 
-            <!-- ══ TAB: ПІКІРЛЕР ══════════════════ -->
+            <!-- ══ TAB: ПІКІРЛЕР ══════════════════════ -->
             <div v-show="activeTab === 'comments'" class="tab-panel">
               <div v-if="comments.length" class="comments-list">
-                <div v-for="c in comments" :key="c.id || c.order" class="comment-card">
-                  <div class="cc-ava" :class="{ 'ava-user': c.source === 'user' }">
-                    {{ c.author?.[0] || '?' }}
+                <div v-for="c in comments" :key="c.id" class="comment-card">
+                  <div class="cc-ava" :class="{ 'ava-user': c.isNew }">
+                    {{ (c.studentName || c.author || '?')[0] }}
                   </div>
                   <div class="cc-body">
                     <div class="cc-top">
-                      <span class="cc-name">{{ c.author }}</span>
+                      <span class="cc-name">{{ c.studentName || c.author }}</span>
                       <span class="cc-date">{{ c.date }}</span>
-                      <span v-if="c.source === 'user'" class="cc-new-badge">Жаңа</span>
+                      <span v-if="c.isNew" class="cc-new-badge">Жаңа</span>
                     </div>
                     <div class="cc-stars">
                       <span v-for="i in 5" :key="i" class="cstar" :class="{ on: i <= c.rating }">★</span>
                       <span class="cstar-num">{{ c.rating }}.0</span>
                     </div>
                     <p class="cc-text">{{ c.text }}</p>
+                    <!-- Мұғалім жауабы -->
+                    <div v-if="c.reply" class="cc-reply">
+                      <span class="cc-reply-label">
+                        <i class="pi pi-reply"/> Мұғалім жауабы
+                      </span>
+                      <p class="cc-reply-text">{{ c.reply }}</p>
+                    </div>
                   </div>
                 </div>
               </div>
               <div v-else class="empty-state">
                 <i class="pi pi-comments"/>
-                <p>Пікір жоқ</p>
+                <p>Пікір жоқ — бірінші болыңыз!</p>
               </div>
 
               <div class="comment-form">
                 <h4 class="cf-head">Пікір қалдыру</h4>
                 <div class="cf-stars">
-                  <span v-for="i in 5" :key="i" class="cf-star" :class="{ on: i <= myRating }" @click="myRating = i">★</span>
+                  <span
+                      v-for="i in 5" :key="i"
+                      class="cf-star" :class="{ on: i <= myRating }"
+                      @click="myRating = i"
+                  >★</span>
                 </div>
-                <textarea v-model="myComment" class="cf-ta" placeholder="Пікіріңізді жазыңыз…" rows="3"/>
-                <button class="btn-gold btn-sm" @click="submitComment" :disabled="!myComment.trim()">
-                  <i class="pi pi-send"/> Жіберу
+                <textarea
+                    v-model="myComment"
+                    class="cf-ta"
+                    placeholder="Пікіріңізді жазыңыз…"
+                    rows="3"
+                />
+                <button class="btn-gold btn-sm" @click="submitComment"
+                        :disabled="!myComment.trim() || sending">
+                  <div v-if="sending" class="cf-spin"/>
+                  <template v-else>
+                    <i class="pi pi-send"/> Жіберу
+                  </template>
                 </button>
                 <p class="cf-hint">
-                  <i class="pi pi-database"/> Пікір localStorage-ке сақталады
+                  <i class="pi pi-database" style="color:#3ecf8e"/>
+                  Пікір Supabase-ке сақталады
                 </p>
               </div>
             </div>
@@ -329,50 +347,45 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import * as XLSX from 'xlsx'
-import { useAuth } from '@/composables/useAuth'
-import VideoPlayer from "@/components/VideoPlayer.vue";
+import { useAuth }          from '@/composables/useAuth'
+import { useLessonsStore }  from '@/composables/useLessonsStore'
+import { useCommentsStore } from '@/composables/useCommentsStore'
+import { supabase }         from '@/composables/useSupabase'
 import PdfViewer from "@/components/PdfViewer.vue";
-
-const { currentUser } = useAuth()
-
-// ─── Import viewer components ─────────────────────────
+import VideoPlayer from "@/components/VideoPlayer.vue";
 
 const route  = useRoute()
 const router = useRouter()
 
-const EXCEL_PATH = '/data/Sabaqtar_MB.xlsx'
+const { currentUser }     = useAuth()
+const { init: lessonsInit, getById } = useLessonsStore()
+const {
+  init:       commentsInit,
+  addComment,
+  getByLesson,
+} = useCommentsStore()
 
 // ─── State ────────────────────────────────────────────
-const status   = ref('loading')
-const errorMsg = ref('')
-const lesson   = ref(null)
-const chapters = ref([])
-const materials= ref([])
-const comments = ref([])
+const status    = ref('loading')
+const errorMsg  = ref('')
+const lesson    = ref(null)
+const chapters  = ref([])
+const materials = ref([])
 
-const activeTab    = ref('content')
-const activeCh     = ref(1)
-const saved        = ref(false)
-const notes        = ref('')
-const myComment    = ref('')
-const myRating     = ref(0)
-const videoProgress= ref(0)
+const activeTab  = ref('content')
+const activeCh   = ref(1)
+const notes      = ref('')
+const myComment  = ref('')
+const myRating   = ref(0)
+const sending    = ref(false)
 
-// ─── Comments LS key ──────────────────────────────────
-function commentsKey(type, id) { return `lesson_comments_${type}_${id}` }
-
-function saveCommentsToLS(type, id, data) {
-  try { localStorage.setItem(commentsKey(type, id), JSON.stringify(data)) }
-  catch(e) { console.warn('[LessonDetail] LS write error', e) }
-}
-
-function loadCommentsFromLS(type, id) {
-  try {
-    const raw = localStorage.getItem(commentsKey(type, id))
-    return raw ? JSON.parse(raw) : null
-  } catch { return null }
-}
+// ─── Пікірлер — useCommentsStore арқылы ──────────────
+// lesson.value?.title бойынша getByLesson computed қайтарады
+const comments = computed(() =>
+    lesson.value
+        ? getByLesson(lesson.value.title).value
+        : []
+)
 
 // ─── Init ─────────────────────────────────────────────
 onMounted(() => init())
@@ -381,118 +394,113 @@ watch(() => [route.params.type, route.params.id], () => init())
 async function init() {
   const type = String(route.params.type || 'video')
   const id   = Number(route.params.id   || 1)
+
   status.value   = 'loading'
   errorMsg.value = ''
   lesson.value   = null
   chapters.value = []
   materials.value= []
-  comments.value = []
-  notes.value    = localStorage.getItem(`lesson_notes_${type}_${id}`) || ''
-  await loadFromExcel(type, id)
-}
+  notes.value    = ''
 
-async function loadFromExcel(type, id) {
   try {
-    const res = await fetch(EXCEL_PATH)
-    if (!res.ok) throw new Error(`Excel файл жүктелмеді (${res.status}): ${EXCEL_PATH}`)
-    const buf = await res.arrayBuffer()
-    const wb  = XLSX.read(buf, { type: 'array' })
+    // 1. Lessons store-ын жүктеу (singleton — бір рет жүктеледі)
+    await lessonsInit()
 
-    // 1. Lesson
-    const sheetName = { video:'🎬 Видео сабақтар', text:'📄 Конспекттер', pdf:'📑 PDF материалдар' }[type]
-    if (!sheetName) throw new Error(`Белгісіз тип: "${type}"`)
-    if (!wb.SheetNames.includes(sheetName)) throw new Error(`Excel-де «${sheetName}» беті жоқ`)
-
-    const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { range: 5, header: 1, defval: '' })
-    const row  = rows.find(r => Number(r[1]) === id)
-    if (!row) { status.value = 'notfound'; return }
-
-    lesson.value = {
-      id, type,
-      title:       String(row[2]  || ''),
-      author:      String(row[3]  || ''),
-      fileUrl:     String(row[4]  || ''),
-      cover:       String(row[5]  || defaultCover(type)),
-      duration:    String(row[6]  || ''),
-      level:       String(row[7]  || 'Орташа'),
-      topic:       String(row[8]  || ''),
-      category:    String(row[9]  || ''),
-      description: String(row[10] || ''),
+    // 2. Сабақты id бойынша табу
+    const found = getById(id)
+    if (!found) { status.value = 'notfound'; return }
+    if (found.type !== type) {
+      // type параметрі дұрыс емес — redirect
+      router.replace({ name:'lesson-detail', params:{ type: found.type, id } })
+      return
     }
+    lesson.value = found
 
-    // 2. Chapters
-    if (wb.SheetNames.includes('📚 Тараулар')) {
-      chapters.value = XLSX.utils.sheet_to_json(wb.Sheets['📚 Тараулар'], { range: 5, header: 1, defval: '' })
-          .filter(r => Number(r[1]) === id && String(r[2]) === type && String(r[3]).trim())
-          .map(r => ({ title: String(r[3]||''), time: String(r[4]||''), content: String(r[5]||''), fileUrl: String(r[6]||''), order: Number(r[7]||0) }))
-          .sort((a,b) => a.order - b.order)
-    }
+    // 3. Chapters — Supabase lesson_chapters кестесі (болса)
+    await loadChapters(id)
 
-    // 3. Materials
-    if (wb.SheetNames.includes('📎 Материалдар')) {
-      materials.value = XLSX.utils.sheet_to_json(wb.Sheets['📎 Материалдар'], { range: 5, header: 1, defval: '' })
-          .filter(r => Number(r[1]) === id && String(r[2]) === type && String(r[3]).trim())
-          .map(r => ({ title: String(r[3]||''), fileType: String(r[4]||'pdf').toLowerCase(), size: String(r[5]||''), fileUrl: String(r[6]||''), order: Number(r[7]||0) }))
-          .sort((a,b) => a.order - b.order)
-    }
+    // 4. Materials — Supabase lesson_materials кестесі (болса)
+    await loadMaterials(id)
 
-    // 4. Пікірлер: алдымен LS тексер, болмаса Excel-ден оқы → LS-ке сақта
-    const cached = loadCommentsFromLS(type, id)
-    if (cached) {
-      // LS-те бар → тікелей жүктейміз
-      comments.value = cached
-    } else {
-      // LS жоқ → Excel-ден оқып LS-ке сақтаймыз
-      let excelComments = []
-      if (wb.SheetNames.includes('💬 Пікірлер')) {
-        excelComments = XLSX.utils.sheet_to_json(wb.Sheets['💬 Пікірлер'], { range: 5, header: 1, defval: '' })
-            .filter(r => Number(r[1]) === id && String(r[2]) === type && String(r[3]).trim())
-            .map((r, i) => ({
-              id:     `c_excel_${i}`,
-              author: String(r[3] || ''),
-              date:   String(r[4] || ''),
-              rating: Number(r[5] || 5),
-              text:   String(r[6] || ''),
-              order:  Number(r[7] || 0),
-              source: 'excel',
-            }))
-            .sort((a, b) => a.order - b.order)
-      }
-      comments.value = excelComments
-      saveCommentsToLS(type, id, excelComments)
-    }
+    // 5. Пікірлер — useCommentsStore (Supabase comments кестесі)
+    await commentsInit()
 
     status.value = 'ready'
-  } catch (e) {
+  } catch(e) {
     status.value   = 'error'
     errorMsg.value = e.message
     console.error('[LessonDetail]', e)
   }
 }
 
-function defaultCover(t) {
-  return { video:'https://images.unsplash.com/photo-1476820865390-c52aeebb9891?w=900&q=80', text:'https://images.unsplash.com/photo-1455390582262-044cdead277a?w=900&q=80', pdf:'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=900&q=80' }[t]
+// ─── Chapters — Supabase ──────────────────────────────
+async function loadChapters(lessonId) {
+  try {
+    const { data, error } = await supabase
+        .from('lesson_chapters')
+        .select('*')
+        .eq('lesson_id', lessonId)
+        .order('order_num', { ascending: true })
+    if (error) throw error
+    chapters.value = (data || []).map(r => ({
+      title:   r.title   || '',
+      time:    r.time    || '',
+      content: r.content || '',
+      fileUrl: r.file_url|| '',
+      order:   r.order_num || 0,
+    }))
+  } catch {
+    // Кесте жоқ болса — бос тізім (қосымша кесте міндетті емес)
+    chapters.value = []
+  }
+}
+
+// ─── Materials — Supabase ─────────────────────────────
+async function loadMaterials(lessonId) {
+  try {
+    const { data, error } = await supabase
+        .from('lesson_materials')
+        .select('*')
+        .eq('lesson_id', lessonId)
+        .order('order_num', { ascending: true })
+    if (error) throw error
+    materials.value = (data || []).map(r => ({
+      title:   r.title    || '',
+      fileType:(r.file_type || 'pdf').toLowerCase(),
+      size:    r.size     || '',
+      fileUrl: r.file_url || '',
+      order:   r.order_num|| 0,
+    }))
+  } catch {
+    materials.value = []
+  }
 }
 
 // ─── Computed ─────────────────────────────────────────
-const avgRating = computed(() => !comments.value.length ? 0 : comments.value.reduce((s,c) => s+c.rating,0)/comments.value.length)
-const notesWordCount = computed(() => notes.value.trim() ? notes.value.trim().split(/\s+/).length : 0)
+const avgRating = computed(() =>
+    !comments.value.length ? 0
+        : comments.value.reduce((s, c) => s + c.rating, 0) / comments.value.length
+)
+
+const notesWordCount = computed(() =>
+    notes.value.trim() ? notes.value.trim().split(/\s+/).length : 0
+)
 
 const tabList = computed(() => [
-  { key:'content',   label:'Мазмұн',                                icon:'pi-play-circle' },
-  { key:'materials', label:`Материалдар (${materials.value.length})`, icon:'pi-folder'    },
-  { key:'notes',     label:'Конспект',                               icon:'pi-pencil'     },
-  { key:'comments',  label:`Пікірлер (${comments.value.length})`,    icon:'pi-comments'   },
+  { key:'content',   label:'Мазмұн',                                   icon:'pi-play-circle' },
+  { key:'materials', label:`Материалдар (${materials.value.length})`,   icon:'pi-folder'      },
+  { key:'notes',     label:'Конспект',                                  icon:'pi-pencil'      },
+  { key:'comments',  label:`Пікірлер (${comments.value.length})`,       icon:'pi-comments'    },
 ])
 
 const infoRows = computed(() => lesson.value ? [
-  { icon:'pi-clock',     label:'Ұзақтығы',    val: lesson.value.duration },
-  { icon:'pi-tag',       label:'Тақырып',     val: lesson.value.topic },
-  { icon:'pi-chart-bar', label:'Деңгей',      val: lesson.value.level },
-  { icon:'pi-folder',    label:'Санат',        val: lesson.value.category },
-  { icon:'pi-list',      label:'Тараулар',    val: chapters.value.length + ' бөлім' },
-  { icon:'pi-paperclip', label:'Материалдар', val: materials.value.length + ' файл' },
-  { icon:'pi-star',      label:'Рейтинг',     val: avgRating.value > 0 ? avgRating.value.toFixed(1)+' / 5' : '—' },
+  { icon:'pi-clock',     label:'Ұзақтығы',    val: lesson.value.duration                                },
+  { icon:'pi-tag',       label:'Тақырып',     val: lesson.value.topic                                  },
+  { icon:'pi-chart-bar', label:'Деңгей',      val: lesson.value.level                                  },
+  { icon:'pi-folder',    label:'Санат',        val: lesson.value.category                               },
+  { icon:'pi-list',      label:'Тараулар',    val: chapters.value.length  + ' бөлім'                  },
+  { icon:'pi-paperclip', label:'Материалдар', val: materials.value.length + ' файл'                   },
+  { icon:'pi-star',      label:'Рейтинг',     val: avgRating.value > 0 ? avgRating.value.toFixed(1) + ' / 5' : '—' },
 ] : [])
 
 // ─── Helpers ──────────────────────────────────────────
@@ -501,38 +509,50 @@ function typeLabel(t) { return { video:'Видео сабақ', text:'Консп
 function matIcon(t)   { return { pdf:'pi-file-pdf', docx:'pi-file-word', link:'pi-link', mp4:'pi-video' }[t] || 'pi-file' }
 function lvlClass(l)  { return l === 'Оңай' ? 'lv-easy' : l === 'Жоғары' ? 'lv-hard' : 'lv-mid' }
 
+function defaultCover(t) {
+  return {
+    video:'https://images.unsplash.com/photo-1476820865390-c52aeebb9891?w=900&q=80',
+    text: 'https://images.unsplash.com/photo-1455390582262-044cdead277a?w=900&q=80',
+    pdf:  'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=900&q=80',
+  }[t]
+}
+
 // ─── Actions ──────────────────────────────────────────
 function scrollToContent() {
-  document.getElementById('lesson-content-anchor')?.scrollIntoView({ behavior: 'smooth' })
+  document.getElementById('lesson-content-anchor')?.scrollIntoView({ behavior:'smooth' })
 }
+
+// Notes — localStorage-те сақтайды (жеке оқушының жазбалары)
 function saveNotes() {
-  localStorage.setItem(`lesson_notes_${route.params.type}_${route.params.id}`, notes.value)
+  const key = `lesson_notes_${route.params.type}_${route.params.id}`
+  localStorage.setItem(key, notes.value)
 }
-function submitComment() {
-  if (!myComment.value.trim()) return
 
-  const type = String(route.params.type || 'video')
-  const id   = Number(route.params.id   || 1)
+onMounted(() => {
+  const key = `lesson_notes_${route.params.type}_${route.params.id}`
+  notes.value = localStorage.getItem(key) || ''
+})
 
-  const newComment = {
-    id:     `c_user_${Date.now()}`,
-    author: currentUser?.value?.name || 'Оқушы',
-    date:   new Date().toLocaleDateString('kk-KZ'),
-    rating: myRating.value || 5,
-    text:   myComment.value.trim(),
-    order:  0,
-    source: 'user',
+// Пікір жіберу → Supabase INSERT (useCommentsStore)
+async function submitComment() {
+  if (!myComment.value.trim() || !lesson.value) return
+  sending.value = true
+  try {
+    await addComment({
+      studentId:   currentUser.value?.id    || 'guest',
+      studentName: currentUser.value?.name  || 'Оқушы',
+      class:       currentUser.value?.class || '',
+      lessonName:  lesson.value.title,
+      rating:      myRating.value || 5,
+      text:        myComment.value.trim(),
+    })
+    myComment.value = ''
+    myRating.value  = 0
+  } catch(e) {
+    console.error('[LessonDetail] submitComment:', e)
+  } finally {
+    sending.value = false
   }
-
-  // Тізімнің алдына қосамыз
-  comments.value = [newComment, ...comments.value]
-
-  // localStorage-ке сақтаймыз
-  saveCommentsToLS(type, id, comments.value)
-
-  // Форманы тазалаймыз
-  myComment.value = ''
-  myRating.value  = 0
 }
 </script>
 
@@ -692,6 +712,11 @@ function submitComment() {
 @keyframes pulse-badge { 0%,100%{opacity:1} 50%{opacity:.6} }
 .cf-hint { font-size:.68rem; color:#9a8a72; display:flex; align-items:center; gap:.3rem; margin:.5rem 0 0; font-style:italic; }
 .cf-hint i { color:var(--gold); font-size:.7rem; }
+.cf-spin { width:14px; height:14px; border:2px solid rgba(255,255,255,.3); border-top-color:#fff; border-radius:50%; animation:spin2 .7s linear infinite; }
+@keyframes spin2 { to { transform:rotate(360deg); } }
+.cc-reply { background:rgba(58,92,58,.06); border:1px solid rgba(58,92,58,.2); border-radius:2px; padding:.55rem .75rem; margin-top:.5rem; }
+.cc-reply-label { font-size:.65rem; font-weight:700; color:var(--sage); display:flex; align-items:center; gap:.3rem; margin-bottom:.3rem; text-transform:uppercase; letter-spacing:.07em; }
+.cc-reply-text  { font-size:.8rem; color:#3a5c3a; margin:0; line-height:1.55; }
 .cc-body { flex:1; }
 .cc-top  { display:flex; align-items:baseline; gap:.6rem; margin-bottom:.3rem; }
 .cc-name { font-weight:700; font-size:.85rem; color:var(--ink); }

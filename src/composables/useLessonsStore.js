@@ -1,4 +1,8 @@
-
+// composables/useLessonsStore.js
+// ─────────────────────────────────────────────────────
+// Supabase → lessons кестесі
+// Excel жоқ, localStorage жоқ — тек Supabase
+// ─────────────────────────────────────────────────────
 import { ref, computed } from 'vue'
 import { supabase } from './useSupabase'
 
@@ -102,6 +106,11 @@ export function useLessonsStore() {
         }
     }
 
+    // ── GET BY ID ─────────────────────────────────────────
+    function getById(id) {
+        return lessons.value.find(l => l.id === Number(id)) || null
+    }
+
     // ── Computed ─────────────────────────────────────────
     const stats = computed(() => ({
         total: lessons.value.length,
@@ -113,9 +122,8 @@ export function useLessonsStore() {
     return {
         lessons, loading, error, initialized, stats,
         init,
-        reloadFromExcel,  // alias → init(true)
-        addLesson,
-        updateLesson,
-        deleteLesson,
+        reloadFromExcel,
+        addLesson, updateLesson, deleteLesson,
+        getById,
     }
 }
