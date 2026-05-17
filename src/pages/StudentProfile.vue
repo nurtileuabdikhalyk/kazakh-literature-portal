@@ -17,7 +17,10 @@
           </div>
         </div>
         <div class="sph-actions">
-          <button class="btn-ghost" @click="doLogout">
+          <button class="btn-ghost" @click="goToMain">
+            <i class="pi pi-home"/> Басты бет
+          </button>
+          <button class="btn-ghost ml-2" @click="doLogout">
             <i class="pi pi-sign-out"/> Шығу
           </button>
         </div>
@@ -291,6 +294,10 @@ function gradeClass(g) {
 function doLogout() {
   logout();
   router.push({name: 'login'})
+}
+
+function goToMain() {
+  router.push({name: 'Main'})
 }
 </script>
 

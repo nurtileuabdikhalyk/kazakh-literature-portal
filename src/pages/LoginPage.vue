@@ -174,7 +174,7 @@ async function submit() {
   const success = await login(loginInput.value, password.value)
   if (success) {
     if (isTeacher.value) router.push({ name: 'teacher-cabinet' })
-    else                 router.push({ name: 'student-profile' })
+    else                 router.push({ name: 'Main' })
   }
 }
 </script>
