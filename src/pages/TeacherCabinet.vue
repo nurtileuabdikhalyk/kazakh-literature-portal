@@ -1215,6 +1215,11 @@ function sendReply(c) {
   delete replyTexts[key]
   alert('Жауап тіркелді. Excel-ге қолмен жазыңыз: Auth_MB.xlsx → 💬 Пікірлер')
 }
+async function doDelete() {
+  if (deleteDialog.lesson) await storeDelete(deleteDialog.lesson.id)
+  deleteDialog.show   = false
+  deleteDialog.lesson = null
+}
 </script>
 
 <style scoped>
